@@ -181,7 +181,8 @@ namespace multisig
   *    Key aggregation via aggregation coefficients prevents key cancellation attacks.
   *    See: https://www.getmonero.org/resources/research-lab/pubs/MRL-0009.pdf
   * param: final_keys - address components (public keys) obtained from other participants (not shared with local)
-  * param: privkeys_inout - private keys of address components known by local; each key will be multiplied by an aggregation coefficient (return by reference)
+  * param: privkeys_inout - private keys of address components known by local; each key will be multiplied by an aggregation
+  *                         coefficient (return by reference)
   * return: final multisig public spend key for the account
   */
   //----------------------------------------------------------------------------------------------------------------------
@@ -199,7 +200,8 @@ namespace multisig
     for (std::size_t multisig_keys_index{0}; multisig_keys_index < privkeys_inout.size(); ++multisig_keys_index)
     {
       crypto::public_key pubkey;
-      CHECK_AND_ASSERT_THROW_MES(crypto::secret_key_to_public_key(privkeys_inout[multisig_keys_index], pubkey), "Failed to derive public key");
+      CHECK_AND_ASSERT_THROW_MES(crypto::secret_key_to_public_key(privkeys_inout[multisig_keys_index], pubkey),
+        "Failed to derive public key");
 
       own_keys_mapping[pubkey] = multisig_keys_index;
 
@@ -392,6 +394,8 @@ namespace multisig
   * param: signers - expected participants in multisig kex
   * param: expanded_msgs - set of multisig kex messages to process
   * param: exclude_pubkeys - derivations held by the local account corresponding to round 'expected_round'
+  * param: incomplete_signer_set - only require the minimum number of signers to complete this round
+  *                                minimum = num_signers - (round num - 1)   (including local signer)
   * return: fully sanitized and validated pubkey:origins map for building the account's next kex round message
   */
   //----------------------------------------------------------------------------------------------------------------------
@@ -400,7 +404,8 @@ namespace multisig
     const std::uint32_t expected_round,
     const std::vector<crypto::public_key> &signers,
     const std::vector<multisig_kex_msg> &expanded_msgs,
-    const std::vector<crypto::public_key> &exclude_pubkeys)
+    const std::vector<crypto::public_key> &exclude_pubkeys,
+    const bool incomplete_signer_set)
   {
     // exclude_pubkeys should all be unique
     for (auto it = exclude_pubkeys.begin(); it != exclude_pubkeys.end(); ++it)
@@ -419,12 +424,18 @@ namespace multisig
     std::unordered_map<crypto::public_key, std::unordered_set<crypto::public_key>> origin_pubkeys_map;
 
     // 1. each pubkey should be recommended by a precise number of signers
+    const std::size_t num_recommendations_per_pubkey_required{
+        incomplete_signer_set
+        ? 1
+        : round
+      };
+
     for (const auto &pubkey_and_origins : pubkey_origins_map)
     {
       // expected amount = round_num
       // With each successive round, pubkeys are shared by incrementally larger groups,
       //  starting at 1 in round 1 (i.e. the local multisig key to start kex with).
-      CHECK_AND_ASSERT_THROW_MES(pubkey_and_origins.second.size() == round,
+      CHECK_AND_ASSERT_THROW_MES(pubkey_and_origins.second.size() >= num_recommendations_per_pubkey_required,
         "A pubkey recommended by multisig kex messages had an unexpected number of recommendations.");
 
       // map (sanitized) pubkeys back to origins
@@ -433,8 +444,18 @@ namespace multisig
     }
 
     // 2. the number of unique signers recommending pubkeys should equal the number of signers passed in (minus the local signer)
-    CHECK_AND_ASSERT_THROW_MES(origin_pubkeys_map.size() == signers.size() - 1,
-      "Number of unique other signers does not equal number of other signers that recommended pubkeys.");
+    // - if an incomplete set is allowed, then we need at least one signer to represent each subgroup in this round that
+    //   doesn't include the local signer
+    const std::size_t num_signers_required{
+        incomplete_signer_set
+        ? signers.size() - 1 - (round - 1)
+        : signers.size() - 1
+      };
+
+    CHECK_AND_ASSERT_THROW_MES(origin_pubkeys_map.size() >= num_signers_required,
+      "Number of unique other signers recommending pubkeys does not equal number of required other signers "
+      "(kex round: " << round << ", num signers found: " << origin_pubkeys_map.size() << ", num signers required: " <<
+      num_signers_required << ").");
 
     // 3. each origin should recommend a precise number of pubkeys
 
@@ -461,19 +482,20 @@ namespace multisig
 
     // other signers: (N - 2) choose (msg_round_num - 1)
       // - Each signer recommends keys they share with other signers.
-      // - In each round, a signer shares a key with 'round num - 1' other signers.
-      // - Since 'origins pubkey map' excludes keys shared with the local account,
-      //   only keys shared with participants 'other than local and self' will be in the map (e.g. N - 2 signers).
-      // - So other signers will recommend (N - 2) choose (msg_round_num - 1) pubkeys (after removing keys shared with local).
-      // - Each origin should have a shared key with each group of size 'round - 1'.
-      // Note: Keys shared with local are ignored to facilitate kex round boosting, where one or more signers may
+      // - In each round, every group of size 'round num' will have a key. From a single signer's perspective,
+      //   they will share a key with every group of size 'round num - 1' of other signers.
+      // - Since 'origins pubkey map' excludes keys shared with the local account, only keys shared with participants
+      //   'other than local and self' will be in the map (e.g. N - 2 signers).
+      // - Other signers will recommend (N - 2) choose (msg_round_num - 1) pubkeys (after removing keys shared with local).
+      // Note: Keys shared with local are filtered out to facilitate kex round boosting, where one or more signers may
       //       have boosted the local signer (implying they didn't have access to the local signer's previous round msg).
     const std::uint32_t expected_recommendations_others = n_choose_k_f(signers.size() - 2, round - 1);
 
     // local: (N - 1) choose (msg_round_num - 1)
     const std::uint32_t expected_recommendations_self = n_choose_k_f(signers.size() - 1, round - 1);
 
-    // note: expected_recommendations_others would be 0 in the last round of 1-of-N, but we return early for that case
+    // note: expected_recommendations_others would be 0 in the last round of 1-of-N, but we don't call this function for
+    //       that case
     CHECK_AND_ASSERT_THROW_MES(expected_recommendations_self > 0 && expected_recommendations_others > 0,
       "Bad num signers or round num (possibly numerical limits exceeded).");
 
@@ -485,7 +507,7 @@ namespace multisig
     for (const auto &origin_and_pubkeys : origin_pubkeys_map)
     {
       CHECK_AND_ASSERT_THROW_MES(origin_and_pubkeys.second.size() == expected_recommendations_others,
-        "A pubkey recommended by multisig kex messages had an unexpected number of recommendations.");
+        "A multisig signer recommended an unexpected number of pubkeys.");
 
       // 2 (continued). only expected signers should be recommending keys
       CHECK_AND_ASSERT_THROW_MES(std::find(signers.begin(), signers.end(), origin_and_pubkeys.first) != signers.end(),
@@ -507,6 +529,7 @@ namespace multisig
   * param: expected_round - expected kex round of input messages
   * param: signers - expected participants in multisig kex
   * param: expanded_msgs - set of multisig kex messages to process
+  * param: incomplete_signer_set - only require the minimum amount of messages to complete this round (1 message)
   * return: sanitized and validated pubkey:origins map
   */
   //----------------------------------------------------------------------------------------------------------------------
@@ -514,7 +537,8 @@ namespace multisig
     const crypto::public_key &base_pubkey,
     const std::uint32_t expected_round,
     const std::vector<crypto::public_key> &signers,
-    const std::vector<multisig_kex_msg> &expanded_msgs)
+    const std::vector<multisig_kex_msg> &expanded_msgs,
+    const bool incomplete_signer_set)
   {
     // sanitize input messages
     const std::vector<crypto::public_key> dummy;
@@ -533,17 +557,26 @@ namespace multisig
     CHECK_AND_ASSERT_THROW_MES(pubkey_origins_map.begin()->second == (++(pubkey_origins_map.begin()))->second,
       "Multisig post-kex round messages from other signers did not all recommend the same pubkey pair.");
 
-    // 3) all signers should be present in the recommendation list
+    // 3) all signers should be present in the recommendation list (unless an incomplete list is permitted)
     auto origins = pubkey_origins_map.begin()->second;
-    origins.insert(base_pubkey);  //add self
+    origins.insert(base_pubkey);  //add self if missing
 
-    CHECK_AND_ASSERT_THROW_MES(origins.size() == signers.size(),
-      "Multisig post-kex round message origins don't line up with multisig signer set.");
+    const std::size_t num_signers_required{
+        incomplete_signer_set
+        ? 1
+        : signers.size()
+      };
 
-    for (const crypto::public_key &signer : signers)
+    CHECK_AND_ASSERT_THROW_MES(origins.size() >= num_signers_required,
+      "Multisig post-kex round message origins don't line up with multisig signer set "
+      "(num signers found: " << origins.size() << ", num signers required: " << num_signers_required << ").");
+
+    for (const crypto::public_key &origin : origins)
     {
-      CHECK_AND_ASSERT_THROW_MES(origins.find(signer) != origins.end(),
-        "Could not find an expected signer in multisig post-kex round messages (all signers expected).");
+      // note: if num_signers_required == signers.size(), then this test will ensure all signers are present in 'origins',
+      //       which contains only unique pubkeys
+      CHECK_AND_ASSERT_THROW_MES(std::find(signers.begin(), signers.end(), origin) != signers.end(),
+        "An unknown origin recommended a multisig post-kex verification messsage.");
     }
 
     return pubkey_origins_map;
@@ -564,6 +597,7 @@ namespace multisig
   * param: expanded_msgs - set of multisig kex messages to process
   * param: exclude_pubkeys - keys held by the local account corresponding to round 'current_round'
   *    - If 'current_round' is the final round, these are the local account's shares of the final aggregate key.
+  * param: incomplete_signer_set - allow messages from an incomplete signer set
   * outparam: keys_to_origins_map_out - map between round keys and identity keys
   *    - If in the final round, these are key shares recommended by other signers for the final aggregate key.
   *    - Otherwise, these are the local account's DH derivations for the next round.
@@ -578,6 +612,7 @@ namespace multisig
     const std::vector<crypto::public_key> &signers,
     const std::vector<multisig_kex_msg> &expanded_msgs,
     const std::vector<crypto::public_key> &exclude_pubkeys,
+    const bool incomplete_signer_set,
     multisig_keyset_map_memsafe_t &keys_to_origins_map_out)
   {
     check_multisig_config(current_round, threshold, signers.size());
@@ -598,7 +633,8 @@ namespace multisig
         current_round,
         signers,
         expanded_msgs,
-        exclude_pubkeys);
+        exclude_pubkeys,
+        incomplete_signer_set);
     }
     else //(current_round == kex_rounds_required + 1)
     {
@@ -606,7 +642,8 @@ namespace multisig
       evaluated_pubkeys = evaluate_multisig_post_kex_round_msgs(base_pubkey,
         current_round,
         signers,
-        expanded_msgs);
+        expanded_msgs,
+        incomplete_signer_set);
     }
 
     // prepare keys-to-origins map for updating the multisig account
@@ -693,9 +730,9 @@ namespace multisig
     {
       // post-kex verification round: check that the multisig pubkey and common pubkey were recommended by other signers
       CHECK_AND_ASSERT_THROW_MES(result_keys_to_origins_map.count(m_multisig_pubkey) > 0,
-        "Multisig post-kex round: expected multisig pubkey wasn't found in other signers' messages.");
+        "Multisig post-kex round: expected multisig pubkey wasn't found in input messages.");
       CHECK_AND_ASSERT_THROW_MES(result_keys_to_origins_map.count(m_common_pubkey) > 0,
-        "Multisig post-kex round: expected common pubkey wasn't found in other signers' messages.");
+        "Multisig post-kex round: expected common pubkey wasn't found in input messages.");
 
       // save keys that should be recommended to other signers
       // - for convenience, re-recommend the post-kex verification message once an account is complete
@@ -790,7 +827,8 @@ namespace multisig
   //----------------------------------------------------------------------------------------------------------------------
   // multisig_account: INTERNAL
   //----------------------------------------------------------------------------------------------------------------------
-  void multisig_account::kex_update_impl(const std::vector<multisig_kex_msg> &expanded_msgs)
+  void multisig_account::kex_update_impl(const std::vector<multisig_kex_msg> &expanded_msgs,
+    const bool incomplete_signer_set)
   {
     // check messages are for the expected kex round
     check_messages_round(expanded_msgs, m_kex_rounds_complete + 1);
@@ -816,6 +854,7 @@ namespace multisig
       m_signers,
       expanded_msgs,
       exclude_pubkeys,
+      incomplete_signer_set,
       result_keys_to_origins_map);
 
     // finish account update

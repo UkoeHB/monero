@@ -1139,11 +1139,13 @@ bool simple_wallet::make_multisig_main(const std::vector<std::string> &args, boo
 bool simple_wallet::exchange_multisig_keys(const std::vector<std::string> &args)
 {
   CHECK_MULTISIG_ENABLED();
-  exchange_multisig_keys_main(args, false);
+  exchange_multisig_keys_main(args, false, false);
   return true;
 }
 
-bool simple_wallet::exchange_multisig_keys_main(const std::vector<std::string> &args, bool called_by_mms) {
+bool simple_wallet::exchange_multisig_keys_main(const std::vector<std::string> &args,
+  const bool force_update_use_with_caution,
+  const bool called_by_mms) {
     CHECK_MULTISIG_ENABLED();
     bool ready;
     if (m_wallet->key_on_device())
@@ -1177,7 +1179,7 @@ bool simple_wallet::exchange_multisig_keys_main(const std::vector<std::string> &
 
     try
     {
-      std::string multisig_extra_info = m_wallet->exchange_multisig_keys(orig_pwd_container->password(), args);
+      std::string multisig_extra_info = m_wallet->exchange_multisig_keys(orig_pwd_container->password(), args, force_update_use_with_caution);
       bool ready;
       m_wallet->multisig(&ready);
       if (!ready)
@@ -11157,7 +11159,8 @@ void simple_wallet::mms_next(const std::vector<std::string> &args)
         mms::message m = ms.get_message_by_id(data.message_ids[i]);
         sig_args[i] = m.content;
       }
-      command_successful = exchange_multisig_keys_main(sig_args, true);
+      // todo: update mms to enable 'key exchange force updating'
+      command_successful = exchange_multisig_keys_main(sig_args, false, true);
       break;
     }
 
