@@ -244,7 +244,7 @@ namespace
   const char* USAGE_IMPORT_OUTPUTS("import_outputs <filename>");
   const char* USAGE_SHOW_TRANSFER("show_transfer <txid>");
   const char* USAGE_MAKE_MULTISIG("make_multisig <threshold> <string1> [<string>...]");
-  const char* USAGE_EXCHANGE_MULTISIG_KEYS("exchange_multisig_keys <string> [<string>...]");
+  const char* USAGE_EXCHANGE_MULTISIG_KEYS("exchange_multisig_keys [force-update] <string> [<string>...]");
   const char* USAGE_EXPORT_MULTISIG_INFO("export_multisig_info <filename>");
   const char* USAGE_IMPORT_MULTISIG_INFO("import_multisig_info <filename> [<filename>...]");
   const char* USAGE_SIGN_MULTISIG("sign_multisig <filename>");
@@ -1138,8 +1138,22 @@ bool simple_wallet::make_multisig_main(const std::vector<std::string> &args, boo
 
 bool simple_wallet::exchange_multisig_keys(const std::vector<std::string> &args)
 {
+  if (args.size() < 1)
+  {
+    PRINT_USAGE(USAGE_EXCHANGE_MULTISIG_KEYS);
+    return false;
+  }
   CHECK_MULTISIG_ENABLED();
-  exchange_multisig_keys_main(args, false, false);
+
+  bool force_update_use_with_caution = false;
+  auto local_args = args;
+  if (local_args[0] == "force-update")
+  {
+    force_update_use_with_caution = true;
+    local_args.erase(local_args.begin());
+  }
+
+  exchange_multisig_keys_main(local_args, force_update_use_with_caution, false);
   return true;
 }
 
@@ -1168,12 +1182,6 @@ bool simple_wallet::exchange_multisig_keys_main(const std::vector<std::string> &
     if(orig_pwd_container == boost::none)
     {
       fail_msg_writer() << tr("Your original password was incorrect.");
-      return false;
-    }
-
-    if (args.size() < 1)
-    {
-      PRINT_USAGE(USAGE_EXCHANGE_MULTISIG_KEYS);
       return false;
     }
 
