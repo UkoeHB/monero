@@ -1138,16 +1138,11 @@ bool simple_wallet::make_multisig_main(const std::vector<std::string> &args, boo
 
 bool simple_wallet::exchange_multisig_keys(const std::vector<std::string> &args)
 {
-  if (args.size() < 1)
-  {
-    PRINT_USAGE(USAGE_EXCHANGE_MULTISIG_KEYS);
-    return false;
-  }
   CHECK_MULTISIG_ENABLED();
-
   bool force_update_use_with_caution = false;
+
   auto local_args = args;
-  if (local_args[0] == "force-update")
+  if (args.size() >= 1 && local_args[0] == "force-update")
   {
     force_update_use_with_caution = true;
     local_args.erase(local_args.begin());
