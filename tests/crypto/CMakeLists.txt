@@ -65,3 +65,17 @@ set_property(TARGET cnv4-jit-tests
 add_test(
   NAME    cnv4-jit
   COMMAND cnv4-jit-tests 1788000 1789000)
+
+monero_add_minimal_executable(blake2b-tests blake2b-tests.cpp)
+target_link_libraries(blake2b-tests
+  PRIVATE
+    common
+    ${GTEST_LIBRARIES}
+    ${EXTRA_LIBRARIES})
+set_property(TARGET blake2b-tests
+  PROPERTY
+    FOLDER "tests")
+
+add_test(
+  NAME    blake2b
+  COMMAND blake2b-tests "${CMAKE_CURRENT_SOURCE_DIR}/blake2b-kat.txt")  

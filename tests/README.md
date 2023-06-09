@@ -155,3 +155,16 @@ When writing new tests, please implement all functions in `.cpp` or `.c` files, 
 ## Writing fuzz tests
 
 [TODO]
+
+## Runing Blake2b Test
+
+If you want to run the tests directly, once you compiled your repository, from your build directory:
+
+```
+./tests/crypto/blake2b-tests $(MONEROREPO)/tests/crypto/blake2b-kat.txt
+```
+
+Much easier to run the test is running it with `ctest`:
+```
+ctest -R blake2b*
+```
