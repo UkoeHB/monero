@@ -329,4 +329,16 @@ bool has_spent_status(const SpContextualEnoteRecordV1 &record, const SpEnoteSpen
 /// check if a key image is present in a key image set
 bool has_key_image(const SpContextualKeyImageSetV1 &key_image_set, const crypto::key_image &test_key_image);
 
+/// add comparison operator
+bool operator==(const LegacyEnoteOriginContext &a, const LegacyEnoteOriginContext &b);
+bool operator==(const SpEnoteOriginContextV1 &a, const SpEnoteOriginContextV1 &b);
+bool operator==(const SpEnoteSpentContextV1 &a, const SpEnoteSpentContextV1 &b);
+
+bool operator==(const LegacyContextualBasicEnoteRecordV1 &a, const LegacyContextualBasicEnoteRecordV1 &b);
+bool operator==(const LegacyContextualIntermediateEnoteRecordV1 &a, const LegacyContextualIntermediateEnoteRecordV1 &b);
+bool operator==(const LegacyContextualEnoteRecordV1 &a, const LegacyContextualEnoteRecordV1 &b);
+
+bool operator==(const SpContextualBasicEnoteRecordV1 &a, const SpContextualBasicEnoteRecordV1 &b);
+bool operator==(const SpContextualIntermediateEnoteRecordV1 &a, const SpContextualIntermediateEnoteRecordV1 &b);
+bool operator==(const SpContextualEnoteRecordV1 &a, const SpContextualEnoteRecordV1 &b);
 } //namespace sp

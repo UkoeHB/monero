@@ -558,6 +558,21 @@ void SpEnoteStore::update_with_sp_records_from_ledger(const rct::key &alignment_
     this->handle_legacy_key_images_from_sp_selfsends(legacy_key_images_in_sp_selfsends, events_inout);
 }
 //-------------------------------------------------------------------------------------------------------------------
+bool SpEnoteStore::operator==(const SpEnoteStore &other)
+{
+    return m_legacy_intermediate_contextual_enote_records == other.m_legacy_intermediate_contextual_enote_records &&
+           m_legacy_contextual_enote_records              == other.m_legacy_contextual_enote_records &&
+           m_sp_contextual_enote_records                  == other.m_sp_contextual_enote_records &&
+           m_legacy_key_images                            == other.m_legacy_key_images &&
+           m_tracked_legacy_onetime_address_duplicates    == other.m_tracked_legacy_onetime_address_duplicates &&
+           m_legacy_block_id_cache                        == other.m_legacy_block_id_cache &&
+           m_sp_block_id_cache                            == other.m_sp_block_id_cache &&
+           m_legacy_partialscan_index                     == other.m_legacy_partialscan_index &&
+           m_legacy_fullscan_index                        == other.m_legacy_fullscan_index &&
+           m_sp_scanned_index                             == other.m_sp_scanned_index &&
+           m_default_spendable_age                        == other.m_default_spendable_age;
+}
+//-------------------------------------------------------------------------------------------------------------------
 // ENOTE STORE INTERNAL
 //-------------------------------------------------------------------------------------------------------------------
 void SpEnoteStore::update_with_new_blocks_from_ledger_legacy_partialscan(const rct::key &alignment_block_id,

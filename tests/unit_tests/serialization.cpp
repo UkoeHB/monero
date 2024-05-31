@@ -28,6 +28,8 @@
 // 
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+#include "serialization/serialization.h"
+#include <boost/none.hpp>
 #include <cstring>
 #include <cstdint>
 #include <cstdio>
@@ -35,6 +37,7 @@
 #include <vector>
 #include <boost/foreach.hpp>
 #include <boost/archive/portable_binary_iarchive.hpp>
+#include "crypto/crypto.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "ringct/rctSigs.h"
@@ -44,6 +47,7 @@
 #include "serialization/variant.h"
 #include "serialization/containers.h"
 #include "serialization/binary_utils.h"
+#include "serialization/optional.h"
 #include "wallet/wallet2.h"
 #include "gtest/gtest.h"
 #include "unit_tests_utils.h"
@@ -1206,4 +1210,47 @@ TEST(Serialization, adl_free_function)
   //                                                       VVVVVVVVVVVVVVVVVVVVVVVVVV weird string serialization artifact
   const std::string expected = "{\"custom_fieldname\": " + std::to_string(msg.size()) + '"' + epee::string_tools::buff_to_hex_nodelimer(msg) + "\"}";
   EXPECT_EQ(expected, ss.str());
+}
+
+struct StructWithOptional
+{
+    uint64_t i;
+    boost::optional<uint64_t> opt;
+    std::vector<boost::optional<uint64_t>> vec_opt;
+
+    bool operator==(const StructWithOptional &other) const
+    {
+      return i == other.i && opt == other.opt && vec_opt == other.vec_opt;
+    }
+
+    BEGIN_SERIALIZE_OBJECT()
+    FIELD(i)
+    FIELD(opt)
+    FIELD(vec_opt)
+    END_SERIALIZE()
+};
+
+TEST(Serialization, optionals)
+{
+  StructWithOptional swo1{42, 42, {42, boost::none, 42}};
+  StructWithOptional swo2{10, boost::none,{}};
+  StructWithOptional swo3{11, 23, {1, 1, 1, boost::none, boost::none, 1, 1, 1}};
+
+  std::string serialized_swo1;
+  std::string serialized_swo2;
+  std::string serialized_swo3;
+  EXPECT_TRUE(::serialization::dump_binary(swo1, serialized_swo1));
+  EXPECT_TRUE(::serialization::dump_binary(swo2, serialized_swo2));
+  EXPECT_TRUE(::serialization::dump_binary(swo3, serialized_swo3));
+
+  StructWithOptional recovered_swo1;
+  StructWithOptional recovered_swo2;
+  StructWithOptional recovered_swo3;
+  EXPECT_TRUE(::serialization::parse_binary(serialized_swo1, recovered_swo1));
+  EXPECT_TRUE(::serialization::parse_binary(serialized_swo2, recovered_swo2));
+  EXPECT_TRUE(::serialization::parse_binary(serialized_swo3, recovered_swo3));
+
+  EXPECT_EQ(recovered_swo1, swo1);
+  EXPECT_EQ(recovered_swo2, swo2);
+  EXPECT_EQ(recovered_swo3, swo3);
 }

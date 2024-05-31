@@ -167,3 +167,75 @@ inline bool do_serialize(Archive<true>& ar, std::tuple<E0,E1,E2,E3>& p)
   return true;
 }
 
+template <template <bool> class Archive, class E0, class E1, class E2, class E3, class E4>
+inline bool do_serialize(Archive<false>& ar, std::tuple<E0,E1,E2,E3,E4>& p)
+{
+  size_t cnt;
+  ar.begin_array(cnt);
+  if (!ar.good())
+    return false;
+  if (cnt != 5)
+    return false;
+
+  if (!::serialization::detail::serialize_tuple_element(ar, std::get<0>(p)))
+    return false;
+  if (!ar.good())
+    return false;
+  ar.delimit_array();
+  if (!::serialization::detail::serialize_tuple_element(ar, std::get<1>(p)))
+    return false;
+  if (!ar.good())
+    return false;
+  ar.delimit_array();
+  if (!::serialization::detail::serialize_tuple_element(ar, std::get<2>(p)))
+    return false;
+  if (!ar.good())
+    return false;
+  ar.delimit_array();
+  if (!::serialization::detail::serialize_tuple_element(ar, std::get<3>(p)))
+    return false;
+  if (!ar.good())
+    return false;
+  ar.delimit_array();
+  if (!::serialization::detail::serialize_tuple_element(ar, std::get<4>(p)))
+    return false;
+  if (!ar.good())
+    return false;
+
+  ar.end_array();
+  return true;
+}
+
+template <template <bool> class Archive, class E0, class E1, class E2, class E3, class E4>
+inline bool do_serialize(Archive<true>& ar, std::tuple<E0,E1,E2,E3,E4>& p)
+{
+  ar.begin_array(5);
+  if (!ar.good())
+    return false;
+  if(!::serialization::detail::serialize_tuple_element(ar, std::get<0>(p)))
+    return false;
+  if (!ar.good())
+    return false;
+  ar.delimit_array();
+  if(!::serialization::detail::serialize_tuple_element(ar, std::get<1>(p)))
+    return false;
+  if (!ar.good())
+    return false;
+  ar.delimit_array();
+  if(!::serialization::detail::serialize_tuple_element(ar, std::get<2>(p)))
+    return false;
+  if (!ar.good())
+    return false;
+  ar.delimit_array();
+  if(!::serialization::detail::serialize_tuple_element(ar, std::get<3>(p)))
+    return false;
+  if (!ar.good())
+    return false;
+  ar.delimit_array();
+  if(!::serialization::detail::serialize_tuple_element(ar, std::get<4>(p)))
+    return false;
+  if (!ar.good())
+    return false;
+  ar.end_array();
+  return true;
+}

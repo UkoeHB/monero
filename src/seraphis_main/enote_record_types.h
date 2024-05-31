@@ -40,7 +40,6 @@
 #include "tx_component_types.h"
 
 //third party headers
-#include <boost/optional/optional.hpp>
 
 //standard headers
 #include <vector>
@@ -192,5 +191,13 @@ struct SpEnoteRecordV1 final
     /// jamtis enote type
     jamtis::JamtisEnoteType type;
 };
+
+bool operator==(const LegacyBasicEnoteRecord &a, const LegacyBasicEnoteRecord &b);
+bool operator==(const LegacyIntermediateEnoteRecord &a, const LegacyIntermediateEnoteRecord &b);
+bool operator==(const LegacyEnoteRecord &a, const LegacyEnoteRecord &b);
+
+bool operator==(const SpBasicEnoteRecordV1 &a, const SpBasicEnoteRecordV1 &b);
+bool operator==(const SpIntermediateEnoteRecordV1&a, const SpIntermediateEnoteRecordV1 &b);
+bool operator==(const SpEnoteRecordV1 &a, const SpEnoteRecordV1 &b);
 
 } //namespace sp

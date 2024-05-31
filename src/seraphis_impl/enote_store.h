@@ -35,7 +35,15 @@
 #include "ringct/rctTypes.h"
 #include "seraphis_impl/checkpoint_cache.h"
 #include "seraphis_impl/enote_store_event_types.h"
+#include "seraphis_impl/seraphis_serialization.h"
 #include "seraphis_main/contextual_enote_record_types.h"
+#include "serialization/serialization.h"
+#include "serialization/binary_archive.h"
+#include "serialization/containers.h"
+#include "serialization/crypto.h"
+#include "serialization/string.h"
+#include "serialization/pair.h"
+#include "serialization/tuple.h"
 
 //third party headers
 
@@ -57,6 +65,8 @@ class SpEnoteStore final
 {
 public:
 //constructors
+    /// default constructor
+    SpEnoteStore() = default;
     /// normal constructor
     SpEnoteStore(const std::uint64_t refresh_index,
         const std::uint64_t first_sp_enabled_block_in_chain,
@@ -185,6 +195,8 @@ public:
         const std::unordered_map<crypto::key_image, SpEnoteSpentContextV1> &legacy_key_images_in_sp_selfsends,
         std::list<EnoteStoreEvent> &events_inout);
 
+    bool operator==(const SpEnoteStore &other);
+
 private:
     /// update the store with a set of new block ids from the ledger
     void update_with_new_blocks_from_ledger_legacy_partialscan(const rct::key &alignment_block_id,
@@ -294,6 +306,23 @@ private:
     ///   on-chain and the next block's index is >= 'enote origin index + max(1, default_spendable_age)'; legacy
     ///   enotes also have an unlock_time attribute on top of the default spendable age
     std::uint64_t m_default_spendable_age{0};
+
+public:
+    /// de/serialize SpEnoteStore
+    BEGIN_SERIALIZE_OBJECT()
+        FIELD(m_legacy_intermediate_contextual_enote_records)
+        FIELD(m_legacy_contextual_enote_records)
+        FIELD(m_sp_contextual_enote_records)
+        FIELD(m_legacy_key_images_in_sp_selfsends)
+        FIELD(m_tracked_legacy_onetime_address_duplicates)
+        FIELD(m_legacy_key_images)
+        FIELD(m_legacy_block_id_cache)
+        FIELD(m_sp_block_id_cache)
+        VARINT_FIELD(m_legacy_partialscan_index)
+        VARINT_FIELD(m_legacy_fullscan_index)
+        VARINT_FIELD(m_sp_scanned_index)
+        VARINT_FIELD(m_default_spendable_age)
+    END_SERIALIZE()
 };
 
 } //namespace sp

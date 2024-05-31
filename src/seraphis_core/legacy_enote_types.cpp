@@ -137,4 +137,62 @@ LegacyEnoteV5 gen_legacy_enote_v5()
     return temp;
 }
 //-------------------------------------------------------------------------------------------------------------------
+bool operator==(const LegacyEnoteV1 &a, const LegacyEnoteV1 &b)
+{
+    return a.amount          == b.amount &&
+           a.onetime_address == b.onetime_address;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const LegacyEnoteV2 &a, const LegacyEnoteV2 &b)
+{
+    return a.onetime_address                == b.onetime_address &&
+           a.amount_commitment              == b.amount_commitment &&
+           a.encoded_amount                 == b.encoded_amount &&
+           a.encoded_amount_blinding_factor == b.encoded_amount_blinding_factor;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const LegacyEnoteV3 &a, const LegacyEnoteV3 &b)
+{
+    return a.onetime_address   == b.onetime_address &&
+           a.amount_commitment == b.amount_commitment &&
+           a.encoded_amount    == b.encoded_amount;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const LegacyEnoteV4 &a, const LegacyEnoteV4 &b)
+{
+    return a.amount          == b.amount &&
+           a.onetime_address == b.onetime_address &&
+           a.view_tag        == b.view_tag;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const LegacyEnoteV5 &a, const LegacyEnoteV5 &b)
+{
+    return a.onetime_address   == b.onetime_address &&
+           a.amount_commitment == b.amount_commitment &&
+           a.encoded_amount    == b.encoded_amount &&
+           a.view_tag          == b.view_tag;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const LegacyEnoteVariant &variant1, const LegacyEnoteVariant &variant2)
+{
+    // check they have the same type
+    if (!LegacyEnoteVariant::same_type(variant1, variant2))
+        return false;
+
+    // use a visitor to test equality
+    struct visitor final : public tools::variant_static_visitor<bool>
+    {
+        visitor(const LegacyEnoteVariant &other_ref) : other{other_ref} {}
+        const LegacyEnoteVariant &other;
+
+        using variant_static_visitor::operator();  //for blank overload
+        bool operator()(const LegacyEnoteV1 &enote) const { return enote == other.unwrap<LegacyEnoteV1>(); }
+        bool operator()(const LegacyEnoteV2 &enote) const { return enote == other.unwrap<LegacyEnoteV2>(); }
+        bool operator()(const LegacyEnoteV3 &enote) const { return enote == other.unwrap<LegacyEnoteV3>(); }
+        bool operator()(const LegacyEnoteV4 &enote) const { return enote == other.unwrap<LegacyEnoteV4>(); }
+        bool operator()(const LegacyEnoteV5 &enote) const { return enote == other.unwrap<LegacyEnoteV5>(); }
+    };
+
+    return variant1.visit(visitor{variant2});
+}
 } //namespace sp

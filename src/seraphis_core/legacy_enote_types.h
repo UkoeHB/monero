@@ -179,4 +179,11 @@ LegacyEnoteV4 gen_legacy_enote_v4();
 */
 LegacyEnoteV5 gen_legacy_enote_v5();
 
+bool operator==(const LegacyEnoteV1 &a, const LegacyEnoteV1 &b);
+bool operator==(const LegacyEnoteV2 &a, const LegacyEnoteV2 &b);
+bool operator==(const LegacyEnoteV3 &a, const LegacyEnoteV3 &b);
+bool operator==(const LegacyEnoteV4 &a, const LegacyEnoteV4 &b);
+bool operator==(const LegacyEnoteV5 &a, const LegacyEnoteV5 &b);
+bool operator==(const LegacyEnoteVariant &variant1, const LegacyEnoteVariant &variant2);
+
 } //namespace sp

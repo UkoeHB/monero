@@ -37,13 +37,22 @@
 #include "seraphis_core/discretized_fee.h"
 #include "seraphis_core/jamtis_destination.h"
 #include "seraphis_core/jamtis_support_types.h"
+#include "seraphis_core/legacy_enote_types.h"
+#include "seraphis_core/legacy_output_index.h"
 #include "seraphis_crypto/math_utils.h"
 #include "seraphis_crypto/sp_legacy_proof_helpers.h"
+#include "seraphis_impl/checkpoint_cache.h"
+#include "seraphis_main/contextual_enote_record_types.h"
+#include "seraphis_main/enote_record_types.h"
+#include "seraphis_main/txtype_coinbase_v1.h"
+#include "seraphis_main/txtype_squashed_v1.h"
+#include "seraphis_main/tx_component_types.h"
 #include "serialization/containers.h"
 #include "serialization/crypto.h"
 #include "serialization/serialization.h"
-#include "seraphis_main/txtype_coinbase_v1.h"
-#include "seraphis_main/txtype_squashed_v1.h"
+#include "serialization/tuple.h"
+#include "serialization/variant.h"
+#include "serialization/optional.h"
 
 //third party headers
 
@@ -395,6 +404,167 @@ BEGIN_SERIALIZE_OBJECT_FN(SpTxSquashedV1)
     FIELD_F(tx_fee)
 END_SERIALIZE()
 //--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyEnoteV1)
+    FIELD_F(onetime_address)
+    VARINT_FIELD_F(amount)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyEnoteV2)
+    FIELD_F(onetime_address)
+    FIELD_F(amount_commitment)
+    FIELD_F(encoded_amount_blinding_factor)
+    FIELD_F(encoded_amount)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyEnoteV3)
+    FIELD_F(onetime_address)
+    FIELD_F(amount_commitment)
+    FIELD_F(encoded_amount)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyEnoteV4)
+    FIELD_F(onetime_address)
+    VARINT_FIELD_F(amount)
+    FIELD_F(view_tag)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyEnoteV5)
+    FIELD_F(onetime_address)
+    FIELD_F(amount_commitment)
+    FIELD_F(encoded_amount)
+    FIELD_F(view_tag)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(SpBasicEnoteRecordV1)
+    FIELD_F(enote)
+    FIELD_F(enote_ephemeral_pubkey)
+    FIELD_F(input_context)
+    FIELD_F(nominal_address_tag)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(SpIntermediateEnoteRecordV1)
+    FIELD_F(enote)
+    FIELD_F(enote_ephemeral_pubkey)
+    FIELD_F(input_context)
+    FIELD_F(amount)
+    FIELD_F(amount_blinding_factor)
+    FIELD_F(address_index)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(SpEnoteRecordV1)
+    FIELD_F(enote)
+    FIELD_F(enote_ephemeral_pubkey)
+    FIELD_F(input_context)
+    FIELD_F(enote_view_extension_g)
+    FIELD_F(enote_view_extension_x)
+    FIELD_F(enote_view_extension_u)
+    FIELD_F(amount)
+    FIELD_F(amount_blinding_factor)
+    FIELD_F(key_image)
+    FIELD_F(address_index)
+    VARINT_FIELD_F(type)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyBasicEnoteRecord)
+    FIELD_F(enote)
+    FIELD_F(enote_ephemeral_pubkey)
+    FIELD_F(address_index)
+    FIELD_F(tx_output_index)
+    FIELD_F(unlock_time)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyIntermediateEnoteRecord)
+    FIELD_F(enote)
+    FIELD_F(enote_ephemeral_pubkey)
+    FIELD_F(enote_view_extension)
+    FIELD_F(amount)
+    FIELD_F(amount_blinding_factor)
+    FIELD_F(address_index)
+    FIELD_F(tx_output_index)
+    FIELD_F(unlock_time)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyEnoteRecord)
+    FIELD_F(enote)
+    FIELD_F(enote_ephemeral_pubkey)
+    FIELD_F(enote_view_extension)
+    VARINT_FIELD_F(amount)
+    FIELD_F(amount_blinding_factor)
+    FIELD_F(key_image)
+    FIELD_F(address_index)
+    FIELD_F(tx_output_index)
+    FIELD_F(unlock_time)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(legacy_output_index_t)
+    VARINT_FIELD_F(ledger_indexing_amount)
+    VARINT_FIELD_F(index)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyEnoteOriginContext)
+    VARINT_FIELD_F(block_index)
+    VARINT_FIELD_F(block_timestamp)
+    FIELD_F(transaction_id)
+    VARINT_FIELD_F(enote_tx_index)
+    FIELD_F(legacy_enote_ledger_index)
+    VARINT_FIELD_F(origin_status)
+    FIELD_F(memo)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(SpEnoteOriginContextV1)
+    VARINT_FIELD_F(block_index)
+    VARINT_FIELD_F(block_timestamp)
+    FIELD_F(transaction_id)
+    VARINT_FIELD_F(enote_tx_index)
+    FIELD_F(enote_ledger_index)
+    VARINT_FIELD_F(origin_status)
+    FIELD_F(memo)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(SpEnoteSpentContextV1)
+    VARINT_FIELD_F(block_index)
+    VARINT_FIELD_F(block_timestamp)
+    FIELD_F(transaction_id)
+    VARINT_FIELD_F(spent_status)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyContextualBasicEnoteRecordV1)
+    FIELD_F(record)
+    FIELD_F(origin_context)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyContextualIntermediateEnoteRecordV1)
+    FIELD_F(record)
+    FIELD_F(origin_context)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(LegacyContextualEnoteRecordV1)
+    FIELD_F(record)
+    FIELD_F(origin_context)
+    FIELD_F(spent_context)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(SpContextualBasicEnoteRecordV1)
+    FIELD_F(record)
+    FIELD_F(origin_context)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(SpContextualIntermediateEnoteRecordV1)
+    FIELD_F(record)
+    FIELD_F(origin_context)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(SpContextualEnoteRecordV1)
+    FIELD_F(record)
+    FIELD_F(origin_context)
+    FIELD_F(spent_context)
+END_SERIALIZE()
+//--------------------------------------------------------------------------------------------------
+BEGIN_SERIALIZE_OBJECT_FN(CheckpointCacheConfig)
+    FIELD_F(num_unprunable)
+    FIELD_F(max_separation)
+    FIELD_F(density_factor)
+END_SERIALIZE()
 namespace jamtis
 {
 //--------------------------------------------------------------------------------------------------
@@ -426,3 +596,12 @@ END_SERIALIZE()
 BLOB_SERIALIZER(sp::jamtis::address_index_t);
 BLOB_SERIALIZER(sp::jamtis::address_tag_t);
 BLOB_SERIALIZER(sp::jamtis::encoded_amount_t);
+
+VARIANT_TAG(binary_archive, sp::SpCoinbaseEnoteV1, 0x71);
+VARIANT_TAG(binary_archive, sp::SpEnoteV1, 0x72);
+
+VARIANT_TAG(binary_archive, sp::LegacyEnoteV1, 0x73);
+VARIANT_TAG(binary_archive, sp::LegacyEnoteV2, 0x74);
+VARIANT_TAG(binary_archive, sp::LegacyEnoteV3, 0x75);
+VARIANT_TAG(binary_archive, sp::LegacyEnoteV4, 0x76);
+VARIANT_TAG(binary_archive, sp::LegacyEnoteV5, 0x77);

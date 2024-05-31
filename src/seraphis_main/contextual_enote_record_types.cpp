@@ -310,4 +310,72 @@ bool has_key_image(const SpContextualKeyImageSetV1 &key_image_set, const crypto:
             key_image_set.sp_key_images.end();
 }
 //-------------------------------------------------------------------------------------------------------------------
+bool operator==(const LegacyEnoteOriginContext &a, const LegacyEnoteOriginContext &b)
+{
+    return a.block_index                == b.block_index &&
+           a.block_timestamp            == b.block_timestamp &&
+           a.transaction_id             == b.transaction_id &&
+           a.enote_tx_index             == b.enote_tx_index &&
+           a.legacy_enote_ledger_index  == b.legacy_enote_ledger_index &&
+           a.origin_status              == b.origin_status &&
+           a.memo                       == b.memo;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const SpEnoteOriginContextV1 &a, const SpEnoteOriginContextV1 &b)
+{
+    return a.block_index        == b.block_index &&
+           a.block_timestamp    == b.block_timestamp &&
+           a.transaction_id     == b.transaction_id &&
+           a.enote_tx_index     == b.enote_tx_index &&
+           a.enote_ledger_index == b.enote_ledger_index &&
+           a.origin_status      == b.origin_status &&
+           a.memo               == b.memo;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const SpEnoteSpentContextV1 &a, const SpEnoteSpentContextV1 &b)
+{
+    return a.block_index     == b.block_index &&
+           a.block_timestamp == b.block_timestamp &&
+           a.transaction_id  == b.transaction_id &&
+           a.spent_status    == b.spent_status;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const LegacyContextualBasicEnoteRecordV1 &a, const LegacyContextualBasicEnoteRecordV1 &b)
+{
+    return a.record         == b.record &&
+           a.origin_context == b.origin_context;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const LegacyContextualIntermediateEnoteRecordV1 &a, const LegacyContextualIntermediateEnoteRecordV1 &b)
+{
+    return a.record         == b.record &&
+           a.origin_context == b.origin_context;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const LegacyContextualEnoteRecordV1 &a, const LegacyContextualEnoteRecordV1 &b)
+{
+    return a.record         == b.record &&
+           a.origin_context == b.origin_context &&
+           a.spent_context  == b.spent_context;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const SpContextualBasicEnoteRecordV1 &a, const SpContextualBasicEnoteRecordV1 &b)
+{
+    return a.record         == b.record &&
+           a.origin_context == b.origin_context;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const SpContextualIntermediateEnoteRecordV1 &a, const SpContextualIntermediateEnoteRecordV1 &b)
+{
+    return a.record         == b.record &&
+           a.origin_context == b.origin_context;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool operator==(const SpContextualEnoteRecordV1 &a, const SpContextualEnoteRecordV1 &b)
+{
+    return a.record         == b.record &&
+           a.origin_context == b.origin_context &&
+           a.spent_context  == b.spent_context;
+}
+//-------------------------------------------------------------------------------------------------------------------
 } //namespace sp

@@ -46,6 +46,13 @@
 namespace sp
 {
 //-------------------------------------------------------------------------------------------------------------------
+bool operator==(const CheckpointCacheConfig &a, const CheckpointCacheConfig &b)
+{
+    return a.num_unprunable == b.num_unprunable &&
+           a.max_separation == b.max_separation &&
+           a.density_factor == b.density_factor;
+}
+//-------------------------------------------------------------------------------------------------------------------
 CheckpointCache::CheckpointCache(const CheckpointCacheConfig &config, const std::uint64_t min_checkpoint_index) :
     m_config{config},
     m_min_checkpoint_index{min_checkpoint_index}
@@ -296,4 +303,11 @@ void CheckpointCache::prune_checkpoints()
     }
 }
 //-------------------------------------------------------------------------------------------------------------------
+bool CheckpointCache::operator==(const CheckpointCache &other)
+{
+    return m_min_checkpoint_index == other.m_min_checkpoint_index &&
+           m_config               == other.m_config &&
+           m_window_size          == other.m_window_size &&
+           m_checkpoints          == other.m_checkpoints;
+}
 } //namespace sp

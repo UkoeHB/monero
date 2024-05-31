@@ -34,6 +34,7 @@
 
 //local headers
 #include "ringct/rctTypes.h"
+#include "serialization/serialization.h"
 
 //third party headers
 
@@ -46,7 +47,6 @@
 
 namespace sp
 {
-
 /// Configuration details for a checkpoint cache.
 struct CheckpointCacheConfig final
 {
@@ -60,6 +60,8 @@ struct CheckpointCacheConfig final
     /// - higher factor means more checkpoints are retained
     std::uint64_t density_factor;
 };
+
+bool operator==(const CheckpointCacheConfig &a, const CheckpointCacheConfig &b);
 
 ////
 // CheckpointCache
@@ -78,6 +80,7 @@ class CheckpointCache
 {
 public:
 //constructors
+    CheckpointCache() = default;
     CheckpointCache(const CheckpointCacheConfig &config, const std::uint64_t min_checkpoint_index);
 
 //member functions
@@ -101,6 +104,9 @@ public:
     /// insert block ids starting at the specified index (all old blocks >= first_block_index will be removed)
     void insert_new_block_ids(const std::uint64_t first_block_index, const std::vector<rct::key> &new_block_ids);
 
+    /// comparison operator
+    bool operator==(const CheckpointCache &other);
+
 private:
     /// get the window's prune candidate
     std::deque<std::uint64_t>::const_iterator get_window_prune_candidate(const std::deque<std::uint64_t> &window) const;
@@ -113,14 +119,22 @@ private:
 
 //member variables
     /// minimum checkpoint index
-    const std::uint64_t m_min_checkpoint_index;
+    std::uint64_t m_min_checkpoint_index;
 
     /// config
-    const CheckpointCacheConfig m_config;
-    static const std::uint64_t m_window_size{3};
+    CheckpointCacheConfig m_config;
+    std::uint64_t m_window_size{3};
 
     /// stored checkpoints
     std::map<std::uint64_t, rct::key> m_checkpoints;
-};
 
+public:
+    /// de/serialize CheckpointCache
+    BEGIN_SERIALIZE_OBJECT()
+        FIELD(m_min_checkpoint_index)
+        FIELD(m_config)
+        FIELD(m_window_size)
+        FIELD(m_checkpoints)
+    END_SERIALIZE()
+};
 } //namespace sp
