@@ -138,7 +138,6 @@ target_link_libraries(unit_tests
     daemon_rpc_server
     blockchain_db
     lmdb_lib
-    mx25519_static
     rpc
     net
     serialization
