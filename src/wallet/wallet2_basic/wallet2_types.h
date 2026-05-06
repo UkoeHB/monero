@@ -129,6 +129,7 @@ struct multisig_info
     };
 
     crypto::public_key m_signer;
+    // Nonces for CLSAG signatures
     std::vector<LR> m_LR;
     std::vector<crypto::key_image> m_partial_key_images; // one per key the participant has
 };

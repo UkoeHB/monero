@@ -113,9 +113,13 @@ namespace rct {
 
     //used for multisig data
     struct multisig_kLRki {
+        // Partial signing nonce 'alpha'
         key k;
+        // alpha G
         key L;
+        // alpha Hp(Ko)
         key R;
+        // k_agg Hp(Ko)  (full key image for an enote)
         key ki;
 
         ~multisig_kLRki() { memwipe(&k, sizeof(k)); }
