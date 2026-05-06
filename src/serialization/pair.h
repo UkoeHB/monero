@@ -44,16 +44,16 @@ namespace serialization
       return std::is_integral<T>::value && std::is_unsigned<T>::value && sizeof(T) > 1;
     }
 
-    template <typename Archive, class T>
+    template <typename Archive, class T, class... Args>
     typename std::enable_if<!use_pair_varint<T>(), bool>::type
-    serialize_pair_element(Archive& ar, T& e)
+    serialize_pair_element(Archive& ar, T& e, Args&&... args)
     {
-      return do_serialize(ar, e);
+      return do_serialize(ar, e, std::forward<Args>(args)...);
     }
 
-    template<typename Archive, typename T>
+    template<typename Archive, typename T, class... Args>
     typename std::enable_if<use_pair_varint<T>(), bool>::type
-    serialize_pair_element(Archive& ar, T& e)
+    serialize_pair_element(Archive& ar, T& e, Args&&... _args)
     {
       static constexpr const bool previously_varint = std::is_same<uint64_t, T>();
 
@@ -65,8 +65,8 @@ namespace serialization
   }
 }
 
-template <template <bool> class Archive, class F, class S>
-inline bool do_serialize(Archive<false>& ar, std::pair<F,S>& p)
+template <template <bool> class Archive, class F, class S, class... Args>
+inline bool do_serialize(Archive<false>& ar, std::pair<F,S>& p, Args&&... args)
 {
   size_t cnt;
   ar.begin_array(cnt);
@@ -75,12 +75,12 @@ inline bool do_serialize(Archive<false>& ar, std::pair<F,S>& p)
   if (cnt != 2)
     return false;
 
-  if (!::serialization::detail::serialize_pair_element(ar, p.first))
+  if (!::serialization::detail::serialize_pair_element(ar, p.first, args...))
     return false;
   if (!ar.good())
     return false;
   ar.delimit_array();
-  if (!::serialization::detail::serialize_pair_element(ar, p.second))
+  if (!::serialization::detail::serialize_pair_element(ar, p.second, args...))
     return false;
   if (!ar.good())
     return false;
@@ -89,18 +89,18 @@ inline bool do_serialize(Archive<false>& ar, std::pair<F,S>& p)
   return true;
 }
 
-template <template <bool> class Archive, class F, class S>
-inline bool do_serialize(Archive<true>& ar, std::pair<F,S>& p)
+template <template <bool> class Archive, class F, class S, class... Args>
+inline bool do_serialize(Archive<true>& ar, std::pair<F,S>& p, Args&&... args)
 {
   ar.begin_array(2);
   if (!ar.good())
     return false;
-  if(!::serialization::detail::serialize_pair_element(ar, p.first))
+  if(!::serialization::detail::serialize_pair_element(ar, p.first, args...))
     return false;
   if (!ar.good())
     return false;
   ar.delimit_array();
-  if(!::serialization::detail::serialize_pair_element(ar, p.second))
+  if(!::serialization::detail::serialize_pair_element(ar, p.second, args...))
     return false;
   if (!ar.good())
     return false;

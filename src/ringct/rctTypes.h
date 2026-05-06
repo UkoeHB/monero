@@ -111,11 +111,15 @@ namespace rct {
     typedef std::vector<ctkey> ctkeyV;
     typedef std::vector<ctkeyV> ctkeyM;
 
-    //used for multisig data
+    // Data shuttle for multisig tx construction.
     struct multisig_kLRki {
+        // Partial signing nonce 'alpha'
         key k;
+        // alpha G
         key L;
+        // alpha Hp(Ko)
         key R;
+        // k_agg Hp(Ko)  (full key image for an enote)
         key ki;
 
         ~multisig_kLRki() { memwipe(&k, sizeof(k)); }

@@ -50,15 +50,33 @@ namespace wallet
 {
 struct multisig_sig
 {
-    rct::rctSig sigs;
-    std::unordered_set<crypto::public_key> ignore;
-    std::unordered_set<rct::key> used_L;
-    std::unordered_set<crypto::public_key> signing_keys;
-    rct::multisig_out msout;
+    // Pubkeys of signers who should *not* participate in this signature.
+    std::set<crypto::public_key> ignore;
+    // The first nonce in each set of nonces that should be used by this signature.
+    // Signers look up their previously-shared nonce sets here before signing.
+    // - It's a flat data structure: [input [alpha# [signer nonce]]]
+    std::vector<rct::key> used_L;
+    // Signers that have already contributed partial signatures to this aggregate signature.
+    std::set<crypto::public_key> signing_keys;
 
+    // [alpha_1_i G, alpha_2_i G] for each input 'i' (aggregates partial nonces 'L' from all signers).
+    // proofs: CLSAG, SAL
     rct::keyM total_alpha_G;
+    // [alpha_1_i Hp(Ko), alpha_2_i Hp(Ko)] for each input 'i' (aggregates partial nonces 'R' from all signers).
+    // proofs: CLSAG, SAL
     rct::keyM total_alpha_H;
+    // [alpha_1_i U, alpha_2_i U)] for each input 'i' (aggregates partial nonces 'U' from all signers).
+    // proofs: SAL
+    rct::keyM total_alpha_U;
+    // Aggregate k U term for each input 'i'.
+    // total_k = sum(k_partial U) + k_shared U
+    // proofs: SAL
+    rct::keyV total_kU;
+    // CLSAG: first challenge for each input 'i'
+    // SAL: partial `s_z`
     rct::keyV c_0;
+    // CLSAG: partial response at hidden input index 'l'
+    // SAL: partial `s_alpha`
     rct::keyV s;
 };
 
@@ -129,6 +147,10 @@ const std::vector<std::uint8_t> &extra_ref(const tx_reconstruct_variant_t&);
 // The convention for destinations is:
 // dests does not include change
 // splitted_dsts (in construction_data) does
+//
+// `pending_tx` that are potentially adversarial (e.g. sourced from a multisig tx proposal)
+// MAY be internally inconsistent or invalid. There is little to no in-library validation. Users
+// MUST independently parse and validate internal consistency/validity.
 struct pending_tx
 {
     cryptonote::transaction tx;
@@ -140,11 +162,20 @@ struct pending_tx
     crypto::secret_key tx_key;
     std::vector<crypto::secret_key> additional_tx_keys;
     std::vector<cryptonote::tx_destination_entry> dests;
+
+    // TODO: move multisig pieces into separate struct?
     std::vector<multisig_sig> multisig_sigs;
+    // ringct (clsag): used to generate enote privkeys
+    // fcmp (sal): used to generate shared SAL nonces
     crypto::secret_key multisig_tx_key_entropy;
+    // fcmp_pp::FcmpRerandomizedOutputCompressed (just the r_* values) for each input 'i'.
+    // Equivalent to [r_o | r_i | r_r_i | r_c]
+    std::vector<std::vector<crypto::secret_key>> multisig_enote_rr;
 
     tx_reconstruct_variant_t construction_data;
 };
+
+bool operator==(const pending_tx &a, const pending_tx &b);
 
 /**
  * @brief Index transfers by OTA, including a burning bug filter
@@ -315,7 +346,31 @@ cryptonote::transaction finalize_fcmps_and_range_proofs(
     const fcmp_pp::curve_trees::TreeCacheV1 &tree_cache,
     const fcmp_pp::curve_trees::CurveTreesV1 &curve_trees);
 /**
- * @brief Finalize FCMPs, BP+ range proofs for outputs amounts, and SA/L proofs for Carrot/FCMP++ txs
+ * @brief prepare_for_fcmp_pp_proofs - prepare inputs and outputs for finalizing a tx's proofs
+ * @param tx_proposal -
+ * @param main_address_spend_pubkeys - all K_s
+ * @param k_view_incoming_dev -
+ * @param s_view_balance_dev -
+ * @param sorted_input_key_images -
+ * @outparam output_pairs_out -
+ * @outparam output_enote_proposals_out -
+ * @outparam encrypted_payment_id_out -
+ * @outparam rerandomized_outputs_out -
+ * @outparam rerandomized_outputs_by_ota_out -
+ */
+void prepare_for_fcmp_pp_proofs(
+    const carrot::CarrotTransactionProposalV1 &tx_proposal,
+    const carrot::address_device &addr_dev,
+    const carrot::view_incoming_key_device &k_view_incoming_dev,
+    const carrot::view_balance_secret_device *s_view_balance_dev,
+    const std::vector<crypto::key_image> &sorted_input_key_images,
+    std::vector<fcmp_pp::OutputPair> &output_pairs_out,
+    std::vector<carrot::RCTOutputEnoteProposal> &output_enote_proposals_out,
+    carrot::encrypted_payment_id_t &encrypted_payment_id_out,
+    std::vector<FcmpRerandomizedOutputCompressed> &rerandomized_outputs_out,
+    std::unordered_map<crypto::public_key, FcmpRerandomizedOutputCompressed> &rerandomized_outputs_by_ota_out);
+/**
+ * @brief finalize FCMPs, BP+ range proofs for outputs amounts, and SA/L proofs for Carrot/FCMP++ txs
  * @param tx_proposal -
  * @param tree_cache - FCMP tree cache to draw enote paths from
  * @param curve_trees -
