@@ -227,7 +227,7 @@ BEGIN_SERIALIZE_OBJECT_FN(UnsignedPreCarrotTransactionSet, uint32_t version = (u
     if (version == 0)
     {
         std::pair<size_t, wallet2_basic::transfer_container> v0_transfers;
-        FIELD(v0_transfers);
+        FIELD_FN(v0_transfers, false);
         std::get<0>(v.transfers) = std::get<0>(v0_transfers);
         std::get<1>(v.transfers) = std::get<0>(v0_transfers) + std::get<1>(v0_transfers).size();
         std::get<2>(v.transfers) = std::get<1>(v0_transfers);

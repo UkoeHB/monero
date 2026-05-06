@@ -49,16 +49,17 @@ namespace wallet
 {
 //-------------------------------------------------------------------------------------------------------------------
 BEGIN_SERIALIZE_OBJECT_FN(multisig_sig)
-    VERSION_FIELD(1)
-    if (version < 1)
+    VERSION_FIELD(2)
+    // Old versions have invalid content.
+    if (version < 2)
         return false;
-    FIELD_F(sigs)
     FIELD_F(ignore)
     FIELD_F(used_L)
     FIELD_F(signing_keys)
-    FIELD_F(msout)
     FIELD_F(total_alpha_G)
     FIELD_F(total_alpha_H)
+    FIELD_F(total_alpha_U)
+    FIELD_F(total_kU)
     FIELD_F(c_0)
     FIELD_F(s)
 END_SERIALIZE()
@@ -97,7 +98,7 @@ BEGIN_SERIALIZE_OBJECT_FN(PreCarrotTransactionProposal)
 END_SERIALIZE()
 //-------------------------------------------------------------------------------------------------------------------
 BEGIN_SERIALIZE_OBJECT_FN(pending_tx)
-    VERSION_FIELD(2)
+    VERSION_FIELD(3)
     FIELD_F(tx)
     FIELD_F(dust)
     FIELD_F(fee)
@@ -133,6 +134,10 @@ BEGIN_SERIALIZE_OBJECT_FN(pending_tx)
         return true;
     }
     FIELD_F(multisig_tx_key_entropy)
+    if (version >= 3)
+    {
+        FIELD_F(multisig_enote_rr)
+    }
 END_SERIALIZE()
 //-------------------------------------------------------------------------------------------------------------------
 } //namespace wallet

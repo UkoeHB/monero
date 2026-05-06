@@ -249,6 +249,7 @@ private:
     ~wallet2();
 
     using multisig_info = wallet2_basic::multisig_info;
+    using multisig_nonces = wallet2_basic::multisig_info::LR;
 
     struct tx_scan_info_t
     {
@@ -291,7 +292,7 @@ private:
     struct multisig_tx_set
     {
       std::vector<pending_tx> m_ptx;
-      std::unordered_set<crypto::public_key> m_signers;
+      std::set<crypto::public_key> m_signers;
 
       BEGIN_SERIALIZE_OBJECT()
         FIELD(m_ptx)
@@ -764,6 +765,8 @@ private:
     bool sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto::hash> &txids);
     bool sign_multisig_tx_to_file(multisig_tx_set &exported_txs, const std::string &filename, std::vector<crypto::hash> &txids);
     std::vector<pending_tx> create_unmixable_sweep_transactions();
+    std::deque<crypto::public_key> multisig_available_signers() const;
+    std::vector<std::set<crypto::public_key>> multisig_attempt_ignore_sets() const;
     void discard_unmixable_outputs();
     bool check_connection(uint32_t *version = NULL, bool *ssl = NULL, uint32_t timeout = 200000, bool *wallet_is_outdated = NULL, bool *daemon_is_outdated = NULL);
     bool check_version(uint32_t *version, bool *wallet_is_outdated, bool *daemon_is_outdated);
@@ -922,9 +925,9 @@ private:
 
     BEGIN_SERIALIZE_OBJECT()
       MAGIC_FIELD("monero wallet cache")
-      VERSION_FIELD(3)
+      VERSION_FIELD(4)
       FIELD(m_blockchain)
-      FIELD(m_transfers)
+      FIELD_FN(m_transfers, version >= 4)
       FIELD(m_account_public_address)
       FIELD(m_key_images)
       FIELD(m_unconfirmed_txs)
@@ -1093,6 +1096,7 @@ private:
     uint64_t get_num_rct_outputs();
     size_t get_num_transfer_details() const { return m_transfers.size(); }
     const transfer_details &get_transfer_details(size_t idx) const;
+    const std::vector<transfer_details> &get_all_transfer_details() const;
 
     uint8_t get_current_hard_fork();
     void get_hard_fork_info(uint8_t version, uint64_t &earliest_height);
@@ -1499,12 +1503,8 @@ private:
     bool tx_add_fake_output(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, uint64_t global_index, const crypto::public_key& tx_public_key, const rct::key& mask, uint64_t real_index, bool unlocked, std::unordered_set<crypto::public_key> &valid_public_keys_cache) const;
     bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
     std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const;
-    crypto::key_image get_multisig_composite_key_image(size_t n) const;
-    rct::multisig_kLRki get_multisig_composite_kLRki(size_t n,  const std::unordered_set<crypto::public_key> &ignore_set, std::unordered_set<rct::key> &used_L, std::unordered_set<rct::key> &new_used_L) const;
-    rct::multisig_kLRki get_multisig_kLRki(size_t n, const rct::key &k) const;
-    void get_multisig_k(size_t idx, const std::unordered_set<rct::key> &used_L, rct::key &nonce);
-    std::deque<crypto::public_key> multisig_available_signers() const;
-    std::vector<std::unordered_set<crypto::public_key>> multisig_attempt_ignore_sets() const;
+    multisig_nonces get_multisig_composite_nonces(size_t n,  const std::set<crypto::public_key> &ignore_set, std::unordered_set<rct::key> &used_L, std::vector<rct::key> &new_used_L, crypto::secret_key &k_out) const;
+    multisig_nonces get_multisig_nonces(size_t n, const rct::key &k) const;
     void update_multisig_rescan_info(const std::vector<std::vector<rct::key>> &multisig_k, const std::vector<std::vector<tools::wallet2::multisig_info>> &info, size_t n);
     bool add_rings(const crypto::chacha_key &key, const cryptonote::transaction_prefix &tx);
     bool add_rings(const cryptonote::transaction_prefix &tx);
@@ -1712,6 +1712,10 @@ namespace tools
 
   namespace detail
   {
+    //----------------------------------------------------------------------------------------------------
+    tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pending_tx(
+      const carrot::CarrotTransactionProposalV1 &tx_proposal,
+      const tools::wallet2 &w);
     //----------------------------------------------------------------------------------------------------
     inline void digit_split_strategy(const std::vector<cryptonote::tx_destination_entry>& dsts,
       const cryptonote::tx_destination_entry& change_dst, uint64_t dust_threshold,

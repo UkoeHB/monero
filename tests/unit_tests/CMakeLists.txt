@@ -119,6 +119,7 @@ set(unit_tests_sources
   wallet_scanning.cpp
   wallet_storage.cpp
   wallet_tx_builder.cpp
+  wallet_tx_builder_multisig.cpp
   wipeable_string.cpp
   is_hdd.cpp
   aligned.cpp

@@ -31,6 +31,7 @@
 #include "carrot_core/account_secrets.h"
 #include "carrot_core/address_utils.h"
 #include "carrot_core/enote_utils.h"
+#include "carrot_core/hash_functions.h"
 #include "carrot_core/output_set_finalization.h"
 #include "carrot_core/payment_proposal.h"
 #include "carrot_core/scan.h"
@@ -41,7 +42,14 @@
 #include "mx25519.h"
 #include "ringct/rctOps.h"
 
+#include "../io.h"
+
+#include <algorithm>
 #include <openssl/evp.h>
+#include <sstream>
+#include <ios>
+#include <string>
+#include <vector>
 
 using namespace carrot;
 using namespace carrot::mock::people;
@@ -49,6 +57,83 @@ using namespace carrot::mock::people;
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "unit_tests.carrot"
 
+//---------------------------------------------------------------------------------------------------------------------
+static const std::vector<std::string> hash_function_test_vectors =
+{
+    { "88 3  false false 1212121212121212121212121212121212121212121212121212121212121212 2ab9f400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" },
+    { "88 3  false true  1212121212121212121212121212121212121212121212121212121212121212 9d69f300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" },
+    { "88 8  false false 1212121212121212121212121212121212121212121212121212121212121212 780929e05b0c3b180000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" },
+    { "88 8  false true  1212121212121212121212121212121212121212121212121212121212121212 bf3af50e6dc334a60000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" },
+    { "88 16 false false 1212121212121212121212121212121212121212121212121212121212121212 bdfc7146cd226d5d4067a72fdfa8896e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" },
+    { "88 16 false true  1212121212121212121212121212121212121212121212121212121212121212 0f2dbcdbca827f2bd2f4860ab34a2c63000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" },
+    { "88 32 false false 1212121212121212121212121212121212121212121212121212121212121212 84b1cf12fe7ef008abdc2031610511d7a22f58abf9f8222910696a8ac9cb98330000000000000000000000000000000000000000000000000000000000000000" },
+    { "88 32 false true  1212121212121212121212121212121212121212121212121212121212121212 ac7a1c22b038cc2ed63feb43dd70efd8b191cd5a7708bc5da81449a4931f28bf0000000000000000000000000000000000000000000000000000000000000000" },
+    { "88 64 false false 1212121212121212121212121212121212121212121212121212121212121212 38261c9406d58392edd45f2a0b0a54956db4043322973d210b5b0711604b202102b5fdd226dfb8479c0cce599a47bbb372ac19a54f6bfaf5343548f39fa733e4" },
+    { "88 64 false true  1212121212121212121212121212121212121212121212121212121212121212 b4daf6765b70332990eb02c19105b50ef9ce642411013dd3b43c4d63b4674a60671e51bb01fc0a62800eccb101db7279b7b332ee5a9ba93b70472bf458365136" },
+    { "88 32 true  false 1212121212121212121212121212121212121212121212121212121212121212 0064daffad6ef73bfbf8889ae01e91afd4b7313fd0f770cdda21a0c8099bb5010000000000000000000000000000000000000000000000000000000000000000" },
+    { "88 32 true  true  1212121212121212121212121212121212121212121212121212121212121212 a529e55012787574f9cd08af72660bcb11bc9ea276e9c66c5d39edc66917aa030000000000000000000000000000000000000000000000000000000000000000" }
+};
+//---------------------------------------------------------------------------------------------------------------------
+// `hash_out` is 64 bytes even if `output_size` is less
+void get_test_blake2b_hash(const uint8_t data[1],
+  const size_t output_size,
+  const bool to_scalar,
+  const uint8_t *key,
+  uint8_t *hash_out)
+{
+  if (output_size > 64)
+  {
+    hash_out = nullptr;
+  }
+  if (to_scalar)
+    carrot::derive_scalar(data, 1, key, hash_out);
+  else if (output_size == 3)
+    carrot::derive_bytes_3(data, 1, key, hash_out);
+  else if (output_size == 8)
+    carrot::derive_bytes_8(data, 1, key, hash_out);
+  else if (output_size == 16)
+    carrot::derive_bytes_16(data, 1, key, hash_out);
+  else if (output_size == 32)
+    carrot::derive_bytes_32(data, 1, key, hash_out);
+  else if (output_size == 64)
+    carrot::derive_bytes_64(data, 1, key, hash_out);
+  else
+  {
+    hash_out = nullptr;
+  }
+}
+
+TEST(carrot_core, hash_functions)
+{
+    for (const std::string &vector : hash_function_test_vectors)
+    {
+        std::stringstream input(vector);
+        size_t data{};
+        size_t output_size{};
+        bool to_scalar{};
+        bool use_key{};
+        uint8_t key[32];
+        std::fill_n(key, 32, 0);
+        uint8_t expected[64], actual[64];
+        std::fill_n(expected, 64, 255);
+        std::fill_n(actual, 64, 1);
+        get(input, data, output_size, to_scalar, use_key, key, expected);
+        uint8_t data_fill[1];
+        data_fill[0] = data;
+        get_test_blake2b_hash(data_fill, output_size, to_scalar, use_key ? key : nullptr, actual);
+        EXPECT_TRUE(output_size <= 64);
+        EXPECT_TRUE(0 == memcmp(expected, actual, output_size));
+        // {
+        //     std::cerr << std::dec << "data " << data << " sz " << output_size << " to sc " << to_scalar << " use k " << use_key << " k " << key << " exp ";
+        //     for (int i = 0; i < output_size; i += 1)
+        //         std::cerr << std::hex << std::setfill('0') << std::setw(2) << (int)expected[i];
+        //     std::cerr << std::dec << " actual ";
+        //     for (int i = 0; i < output_size; i += 1)
+        //         std::cerr << std::hex << std::setfill('0') << std::setw(2) << (int)actual[i];
+        //     std::cerr << std::endl;
+        // }
+    }
+}
 //---------------------------------------------------------------------------------------------------------------------
 TEST(carrot_core, ECDH_cryptonote_completeness)
 {

@@ -32,6 +32,7 @@ set(multisig_sources
   multisig_account_kex_impl.cpp
   multisig_clsag_context.cpp
   multisig_kex_msg.cpp
+  multisig_sal.cpp
   multisig_tx_builder_ringct.cpp)
 
 set(multisig_headers)
@@ -53,5 +54,7 @@ target_link_libraries(multisig
     cryptonote_core
     common
     cncrypto
+    fcmp_pp
+    carrot_core
   PRIVATE
     ${EXTRA_LIBRARIES})
