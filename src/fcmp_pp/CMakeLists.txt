@@ -31,6 +31,7 @@ set(fcmp_pp_sources
   fcmp_pp_crypto.cpp
   fcmp_pp_types.cpp
   prove.cpp
+  sal.cpp
   tower_cycle.cpp
   tree_cache.cpp)
 

@@ -54,10 +54,15 @@ namespace multisig
     std::size_t multisig_key_index,
     const crypto::public_key& out_key,
     crypto::key_image& ki);
-  void generate_multisig_LR(const crypto::public_key pkey,
+  // L = k G
+  // R = k Hp(pkey)
+  // U = k U  (w/ generator `U`)
+  void generate_multisig_nonces(const crypto::public_key pkey,
     const crypto::secret_key &k,
     crypto::public_key &L,
-    crypto::public_key &R);
+    crypto::public_key &R,
+    crypto::public_key &U);
+  // TODO: legacy-only, not Carrot-compatible
   bool generate_multisig_composite_key_image(const cryptonote::account_keys &keys,
     const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddresses,
     const crypto::public_key &out_key,

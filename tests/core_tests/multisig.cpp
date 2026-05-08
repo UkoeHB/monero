@@ -197,6 +197,7 @@ bool gen_multisig_tx_validation_base::generate_with(std::vector<test_event_entry
   std::vector<std::vector<std::vector<crypto::secret_key>>> account_k(total);
   std::vector<std::vector<std::vector<crypto::public_key>>> account_L(total);
   std::vector<std::vector<std::vector<crypto::public_key>>> account_R(total);
+  // std::vector<std::vector<std::vector<crypto::public_key>>> account_U(total);
   std::vector<std::vector<std::vector<crypto::key_image>>> account_ki(total);
   std::vector<crypto::public_key> additional_tx_keys;
   for (size_t msidx = 0; msidx < total; ++msidx)
@@ -209,15 +210,19 @@ bool gen_multisig_tx_validation_base::generate_with(std::vector<test_event_entry
     account_k[msidx].resize(inputs);
     account_L[msidx].resize(inputs);
     account_R[msidx].resize(inputs);
+    // account_U[msidx].resize(inputs);
     account_ki[msidx].resize(inputs);
     for (size_t tdidx = 0; tdidx < inputs; ++tdidx)
     {
       account_L[msidx][tdidx].resize(nlr);
       account_R[msidx][tdidx].resize(nlr);
+      // account_U[msidx][tdidx].resize(nlr);
       for (size_t n = 0; n < nlr; ++n)
       {
         account_k[msidx][tdidx].push_back(rct::rct2sk(rct::skGen()));
-        multisig::generate_multisig_LR(output_pub_key[tdidx], account_k[msidx][tdidx][n], account_L[msidx][tdidx][n], account_R[msidx][tdidx][n]);
+        // Note: `account_U[msidx][tdidx][n]` not used, since CLSAG doesn't need it.
+        crypto::public_key dummy_U;
+        multisig::generate_multisig_nonces(output_pub_key[tdidx], account_k[msidx][tdidx][n], account_L[msidx][tdidx][n], account_R[msidx][tdidx][n], dummy_U);
       }
       size_t num_account_partial_ki = miner_account[msidx].get_multisig_keys().size();
       account_ki[msidx][tdidx].resize(num_account_partial_ki);
@@ -236,6 +241,7 @@ bool gen_multisig_tx_validation_base::generate_with(std::vector<test_event_entry
         MDEBUG("k: " << crypto::secret_key_explicit_print_ref{account_k[msidx][tdidx][n]});
         MDEBUG("L: " << account_L[msidx][tdidx][n]);
         MDEBUG("R: " << account_R[msidx][tdidx][n]);
+        // MDEBUG("U: " << account_U[msidx][tdidx][n]);
       }
       for (const auto &ki: account_ki[msidx][tdidx])
         MDEBUG("ki: " << ki);
@@ -336,6 +342,7 @@ bool gen_multisig_tx_validation_base::generate_with(std::vector<test_event_entry
     used_L.clear();
     sig.total_alpha_G.resize(sources.size(), rct::keyV(multisig::signing::kAlphaComponents, rct::identity()));
     sig.total_alpha_H.resize(sources.size(), rct::keyV(multisig::signing::kAlphaComponents, rct::identity()));
+    // sig.total_alpha_U.resize(sources.size(), rct::keyV(multisig::signing::kAlphaComponents, rct::identity()));
     sig.c_0.resize(sources.size());
     sig.s.resize(sources.size());
     for (std::size_t i = 0; i < sources.size(); ++i) {
@@ -344,6 +351,7 @@ bool gen_multisig_tx_validation_base::generate_with(std::vector<test_event_entry
         alpha[m] = rct::sk2rct(account_k[creator][ins_order[i]][m]);
         sig.total_alpha_G[i][m] = rct::pk2rct(account_L[creator][ins_order[i]][m]);
         sig.total_alpha_H[i][m] = rct::pk2rct(account_R[creator][ins_order[i]][m]);
+        //sig.total_alpha_U[i][m] = rct::pk2rct(account_U[creator][ins_order[i]][m]);
         for (size_t j = 0; j < total; ++j) {
           if (j == creator)
             continue;
@@ -354,6 +362,7 @@ bool gen_multisig_tx_validation_base::generate_with(std::vector<test_event_entry
               used_L.insert(account_L[j][ins_order[i]][n]);
               rct::addKeys(sig.total_alpha_G[i][m], sig.total_alpha_G[i][m], rct::pk2rct(account_L[j][ins_order[i]][n]));
               rct::addKeys(sig.total_alpha_H[i][m], sig.total_alpha_H[i][m], rct::pk2rct(account_R[j][ins_order[i]][n]));
+              // rct::addKeys(sig.total_alpha_U[i][m], sig.total_alpha_U[i][m], rct::pk2rct(account_U[j][ins_order[i]][n]));
               break;
             }
           }

@@ -49,6 +49,8 @@ void serialize(Archive &a, wallet2_basic::multisig_info::LR &x, const unsigned i
 {
     a & x.m_L;
     a & x.m_R;
+    if (ver < 1) { return; }
+    a & x.m_U;
 }
 
 template <class Archive>
@@ -418,9 +420,9 @@ inline void serialize(Archive& a, wallet2_basic::background_sync_data_t &x, cons
 } // namespace boost
 
 BOOST_CLASS_VERSION(wallet2_basic::hashchain, 0)
-BOOST_CLASS_VERSION(wallet2_basic::transfer_details, 12)
-BOOST_CLASS_VERSION(wallet2_basic::multisig_info::LR, 0)
-BOOST_CLASS_VERSION(wallet2_basic::multisig_info, 1)
+BOOST_CLASS_VERSION(wallet2_basic::transfer_details, 13)
+BOOST_CLASS_VERSION(wallet2_basic::multisig_info::LR, 1)
+BOOST_CLASS_VERSION(wallet2_basic::multisig_info, 2)
 BOOST_CLASS_VERSION(wallet2_basic::unconfirmed_transfer_details, 8)
 BOOST_CLASS_VERSION(wallet2_basic::confirmed_transfer_details, 6)
 BOOST_CLASS_VERSION(wallet2_basic::payment_details, 5)

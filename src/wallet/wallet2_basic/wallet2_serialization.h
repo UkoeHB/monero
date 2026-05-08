@@ -49,6 +49,7 @@ END_SERIALIZE()
 BEGIN_SERIALIZE_OBJECT_FN(multisig_info::LR)
     FIELD_F(m_L)
     FIELD_F(m_R)
+    FIELD_F(m_U)
 END_SERIALIZE()
 
 BEGIN_SERIALIZE_OBJECT_FN(multisig_info)

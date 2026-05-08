@@ -27,6 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "crypto/crypto.h"
+#include "crypto/generators.h"
 #include "cryptonote_basic/account.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_config.h"
@@ -74,13 +75,15 @@ namespace multisig
     return true;
   }
   //----------------------------------------------------------------------------------------------------------------------
-  void generate_multisig_LR(const crypto::public_key pkey,
+  void generate_multisig_nonces(const crypto::public_key pkey,
     const crypto::secret_key &k,
     crypto::public_key &L,
-    crypto::public_key &R)
+    crypto::public_key &R,
+    crypto::public_key &U)
   {
     rct::scalarmultBase((rct::key&)L, rct::sk2rct(k));
     crypto::generate_key_image(pkey, k, (crypto::key_image&)R);
+    rct::scalarmultKey((rct::key&)L, rct::pk2rct(crypto::get_U()), rct::sk2rct(k));
   }
   //----------------------------------------------------------------------------------------------------------------------
   bool generate_multisig_composite_key_image(const cryptonote::account_keys &keys,

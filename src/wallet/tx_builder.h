@@ -50,15 +50,33 @@ namespace wallet
 {
 struct multisig_sig
 {
+    // OLD: does nothing
     rct::rctSig sigs;
+    // Pubkeys of signers who should *not* participate in this signature.
     std::unordered_set<crypto::public_key> ignore;
+    // The first nonce in each set of nonces that should be used by this signature.
+    // Signers look up their previously-shared nonce sets here before signing.
     std::unordered_set<rct::key> used_L;
+    // Signers that have already contributed partial signatures to `sigs`.
     std::unordered_set<crypto::public_key> signing_keys;
+    // OLD: does nothing
     rct::multisig_out msout;
 
+    // [alpha_1_i G, alpha_2_i G] for each input 'i' (aggregates partial nonces 'L' from all signers).
+    // proofs: CLSAG, SAL
     rct::keyM total_alpha_G;
+    // [alpha_1_i Hp(Ko), alpha_2_i Hp(Ko)] for each input 'i' (aggregates partial nonces 'R' from all signers).
+    // proofs: CLSAG, SAL
     rct::keyM total_alpha_H;
+    // [alpha_1_i U, alpha_2_i U)] for each input 'i' (aggregates partial nonces 'U' from all signers).
+    // proofs: SAL
+    rct::keyM total_alpha_U;
+    // CLSAG: first challenge for each input 'i'
+    // SAL: ignored
     rct::keyV c_0;
+    // Partial response for the signature. Accumulates as signers add partial signatures.
+    // CLSAG: partial response at hidden input index 'l'
+    // SAL: partial `s_alpha`
     rct::keyV s;
 };
 
@@ -136,8 +154,18 @@ struct pending_tx
     crypto::secret_key tx_key;
     std::vector<crypto::secret_key> additional_tx_keys;
     std::vector<cryptonote::tx_destination_entry> dests;
+
+    // TODO: move multisig pieces into separate struct?
     std::vector<multisig_sig> multisig_sigs;
     crypto::secret_key multisig_tx_key_entropy;
+    // fcmp_pp::FcmpRerandomizedOutputCompressed (just the r_* values) for each input 'i'.
+    // Equivalent to [r_o | r_i | r_r_i | r_c]
+    std::vector<std::array<uint8_t, 4 * 32>> multisig_output_rr;
+    // Aggregate k U term for each input 'i'.
+    // total_k = sum(k_partial U) + k_shared U
+    // proofs: SAL
+    rct::keyV multisig_total_kU;
+
     uint32_t subaddr_account;            // subaddress account of your wallet to be used in this transfer
     std::set<uint32_t> subaddr_indices;  // set of address indices used as inputs in this transfer
 

@@ -249,6 +249,7 @@ private:
     ~wallet2();
 
     using multisig_info = wallet2_basic::multisig_info;
+    using multisig_nonces = wallet2_basic::multisig_info::LR;
 
     struct tx_scan_info_t
     {
@@ -1500,8 +1501,8 @@ private:
     bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
     std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const;
     crypto::key_image get_multisig_composite_key_image(size_t n) const;
-    rct::multisig_kLRki get_multisig_composite_kLRki(size_t n,  const std::unordered_set<crypto::public_key> &ignore_set, std::unordered_set<rct::key> &used_L, std::unordered_set<rct::key> &new_used_L) const;
-    rct::multisig_kLRki get_multisig_kLRki(size_t n, const rct::key &k) const;
+    multisig_nonces get_multisig_composite_nonces(size_t n,  const std::unordered_set<crypto::public_key> &ignore_set, std::unordered_set<rct::key> &used_L, std::unordered_set<rct::key> &new_used_L, crypto::secret_key &k_out) const;
+    multisig_nonces get_multisig_nonces(size_t n, const rct::key &k) const;
     void get_multisig_k(size_t idx, const std::unordered_set<rct::key> &used_L, rct::key &nonce);
     std::deque<crypto::public_key> multisig_available_signers() const;
     std::vector<std::unordered_set<crypto::public_key>> multisig_attempt_ignore_sets() const;

@@ -53,5 +53,6 @@ target_link_libraries(multisig
     cryptonote_core
     common
     cncrypto
+    fcmp_pp
   PRIVATE
     ${EXTRA_LIBRARIES})

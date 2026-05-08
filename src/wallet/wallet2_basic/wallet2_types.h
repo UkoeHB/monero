@@ -122,16 +122,29 @@ private:
 
 struct multisig_info
 {
+    // Nonce pubkeys for a multisig signature.
     struct LR
     {
+        // alpha G
+        // proofs: CLSAG, SAL
         rct::key m_L;
+        // alpha Hp(Ko)
+        // proofs: CLSAG, SAL
         rct::key m_R;
+        // alpha U
+        // proofs: SAL
+        rct::key m_U;
     };
 
     crypto::public_key m_signer;
-    // Nonces for CLSAG signatures
+    // Nonces for multisig signatures. Should be enough for binonce signing for each combination of
+    // signers that might work together to sign the associated enote.
+    // proofs: CLSAG, SAL
     std::vector<LR> m_LR;
-    std::vector<crypto::key_image> m_partial_key_images; // one per key the participant has
+    // proofs: CLSAG, SAL
+    std::vector<crypto::key_image> m_partial_key_images; // one per key share the participant has: k Hp(Ko)
+    // proofs: SAL
+    std::vector<crypto::public_key> m_partial_kU; // one per key share the participant has: k U
 };
 
 struct transfer_details

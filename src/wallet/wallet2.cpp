@@ -10306,6 +10306,7 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
       multisig_sig& sig = multisig_sigs[i];
       sig.total_alpha_G.resize(num_sources, rct::keyV(num_alpha_components));
       sig.total_alpha_H.resize(num_sources, rct::keyV(num_alpha_components));
+      // U is not used by CLSAG !
       sig.s.resize(num_sources);
       sig.c_0.resize(num_sources);
 
@@ -10321,15 +10322,16 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
           memwipe(static_cast<rct::key *>(alpha.data()), alpha.size() * sizeof(rct::key));
         });
         for (std::size_t m = 0; m < num_alpha_components; ++m) {
-          const rct::multisig_kLRki kLRki = get_multisig_composite_kLRki(
+          const multisig_nonces nonces = get_multisig_composite_nonces(
             selected_transfers[ins_order[j]],
             ignore_sets[i],
             all_used_L,  //collect all public L nonces used by this tx proposal (set of tx attempts) to avoid duplicates
-            sig.used_L   //record the public L nonces used by this tx input to this tx attempt, for coordination with other signers
+            sig.used_L,  //record the public L nonces used by this tx input to this tx attempt, for coordination with other signers
+            alpha[m]
           );
-          alpha[m] = kLRki.k;
-          sig.total_alpha_G[j][m] = kLRki.L;
-          sig.total_alpha_H[j][m] = kLRki.R;
+          sig.total_alpha_G[j][m] = nonces.L;
+          sig.total_alpha_H[j][m] = nonces.R;
+          // U is not used by CLSAG !
         }
 
         // local signer: initial partial signature on this tx input for this tx attempt
@@ -14495,21 +14497,32 @@ void wallet2::get_multisig_k(size_t idx, const std::unordered_set<rct::key> &use
   THROW_WALLET_EXCEPTION(tools::error::multisig_export_needed);
 }
 //----------------------------------------------------------------------------------------------------
-rct::multisig_kLRki wallet2::get_multisig_kLRki(size_t n, const rct::key &k) const
+multisig_nonces wallet2::get_multisig_nonces(size_t n, const rct::key &k) const
 {
   CHECK_AND_ASSERT_THROW_MES(n < m_transfers.size(), "Bad m_transfers index");
-  rct::multisig_kLRki kLRki;
-  kLRki.k = k;
-  multisig::generate_multisig_LR(m_transfers[n].get_public_key(), rct::rct2sk(kLRki.k), (crypto::public_key&)kLRki.L, (crypto::public_key&)kLRki.R);
-  kLRki.ki = rct::ki2rct(m_transfers[n].m_key_image);
-  return kLRki;
+  multisig_nonces nonces{};
+  multisig::generate_multisig_nonces(
+    m_transfers[n].get_public_key(),
+    rct::rct2sk(k),
+    (crypto::public_key&)nonces.L,
+    (crypto::public_key&)nonces.R,
+    (crypto::public_key&)nonces.U,
+  );
+  return nonces;
 }
 //----------------------------------------------------------------------------------------------------
-rct::multisig_kLRki wallet2::get_multisig_composite_kLRki(size_t n, const std::unordered_set<crypto::public_key> &ignore_set, std::unordered_set<rct::key> &used_L, std::unordered_set<rct::key> &new_used_L) const
+multisig_nonces wallet2::get_multisig_composite_nonces(
+  size_t n,
+  const std::unordered_set<crypto::public_key> &ignore_set,
+  std::unordered_set<rct::key> &used_L,
+  std::unordered_set<rct::key> &new_used_L,
+  crypto::secret_key &k_out
+) const
 {
   CHECK_AND_ASSERT_THROW_MES(n < m_transfers.size(), "Bad transfer index");
 
-  rct::multisig_kLRki kLRki = get_multisig_kLRki(n, rct::skGen());
+  k_out = rct::skGen();
+  multisig_nonces nonces = get_multisig_nonces(n, k_out);
 
   // pick a L/R pair from every other participant but one
   size_t n_signers_used = 1;
@@ -14524,15 +14537,16 @@ rct::multisig_kLRki wallet2::get_multisig_composite_kLRki(size_t n, const std::u
         continue;
       used_L.insert(lr.m_L);
       new_used_L.insert(lr.m_L);
-      rct::addKeys(kLRki.L, kLRki.L, lr.m_L);
-      rct::addKeys(kLRki.R, kLRki.R, lr.m_R);
+      rct::addKeys(nonces.L, nonces.L, lr.m_L);
+      rct::addKeys(nonces.R, nonces.R, lr.m_R);
+      rct::addKeys(nonces.U, nonces.U, lr.m_U);
       ++n_signers_used;
       break;
     }
   }
   CHECK_AND_ASSERT_THROW_MES(n_signers_used >= m_multisig_threshold, "LR not found for enough participants");
 
-  return kLRki;
+  return nonces;
 }
 //----------------------------------------------------------------------------------------------------
 crypto::key_image wallet2::get_multisig_composite_key_image(size_t n) const
@@ -14655,14 +14669,18 @@ cryptonote::blobdata wallet2::export_multisig()
     }
     info[n].m_LR.clear();
     info[n].m_partial_key_images.clear();
+    info[n].m_partial_kU.clear();
 
-    // record the partial key images
-    for (size_t m = 0; m < get_account().get_multisig_keys().size(); ++m)
+    // record the partial key images and partial `k U` values
+    const std::vector<crypto::secret_key> &multisig_keys = get_account().get_multisig_keys();
+    for (size_t m = 0; m < multisig_keys.size(); ++m)
     {
       // we want to export the partial key image, not the full one, so we can't use td.m_key_image
-      bool r = multisig::generate_multisig_key_image(get_account().get_keys(), m, td.get_public_key(), ki);
-      CHECK_AND_ASSERT_THROW_MES(r, "Failed to generate key image");
+      crypto::generate_key_image(td.get_public_key(), multisig_keys[m], ki);
       info[n].m_partial_key_images.push_back(ki);
+
+      rct::key kU = rct::scalarmultKey(rct::pk2rct(get_U()), rct::sk2rct(multisig_keys[m]));
+      info[n].m_partial_kU.push_back(rct::rct2pk(kU));
     }
 
     // Wallet tries to create as many transactions as many signers combinations. We calculate the maximum number here as follows:
@@ -14681,8 +14699,8 @@ cryptonote::blobdata wallet2::export_multisig()
     for (size_t m = 0; m < nlr; ++m)
     {
       td.m_multisig_k.push_back(rct::skGen());
-      const rct::multisig_kLRki kLRki = get_multisig_kLRki(n, td.m_multisig_k.back());
-      info[n].m_LR.push_back({kLRki.L, kLRki.R});
+      const multisig_nonces nonces = get_multisig_nonces(n, td.m_multisig_k.back());
+      info[n].m_LR.push_back(nonces);
     }
 
     info[n].m_signer = signer;
@@ -14781,10 +14799,15 @@ size_t wallet2::import_multisig(std::vector<cryptonote::blobdata> blobs, bool re
       {
         CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(lr.m_L), "Multisig value is not in the main subgroup");
         CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(lr.m_R), "Multisig value is not in the main subgroup");
+        CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(lr.m_U), "Multisig value is not in the main subgroup");
       }
       for (const auto &ki: e.m_partial_key_images)
       {
         CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(rct::ki2rct(ki)), "Multisig partial key image is not in the main subgroup");
+      }
+      for (const auto &partial_kU: e.m_partial_kU)
+      {
+        CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(rct::pk2rct(m_partial_kU)), "Multisig partial k U is not in the main subgroup");
       }
     }
 

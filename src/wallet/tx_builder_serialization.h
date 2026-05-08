@@ -49,7 +49,7 @@ namespace wallet
 {
 //-------------------------------------------------------------------------------------------------------------------
 BEGIN_SERIALIZE_OBJECT_FN(multisig_sig)
-    VERSION_FIELD(1)
+    VERSION_FIELD(2)
     if (version < 1)
         return false;
     FIELD_F(sigs)
@@ -59,6 +59,8 @@ BEGIN_SERIALIZE_OBJECT_FN(multisig_sig)
     FIELD_F(msout)
     FIELD_F(total_alpha_G)
     FIELD_F(total_alpha_H)
+    if (version >= 2)
+        FIELD_F(total_alpha_U)
     FIELD_F(c_0)
     FIELD_F(s)
 END_SERIALIZE()
@@ -97,7 +99,7 @@ BEGIN_SERIALIZE_OBJECT_FN(PreCarrotTransactionProposal)
 END_SERIALIZE()
 //-------------------------------------------------------------------------------------------------------------------
 BEGIN_SERIALIZE_OBJECT_FN(pending_tx)
-    VERSION_FIELD(2)
+    VERSION_FIELD(3)
     FIELD_F(tx)
     FIELD_F(dust)
     FIELD_F(fee)
@@ -133,6 +135,10 @@ BEGIN_SERIALIZE_OBJECT_FN(pending_tx)
         return true;
     }
     FIELD_F(multisig_tx_key_entropy)
+    if (version >= 3)
+        FIELD_F(multisig_rr_output)
+    if (version >= 3)
+        FIELD_F(multisig_total_kU)
 END_SERIALIZE()
 //-------------------------------------------------------------------------------------------------------------------
 } //namespace wallet
