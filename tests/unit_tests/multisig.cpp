@@ -27,8 +27,13 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "crypto/crypto.h"
+#include "crypto/generators.h"
+#include "fcmp_pp/fcmp_pp_types.h"
+#include "fcmp_pp/fcmp_pp_types_interop.h"
+#include "fcmp_pp/prove.h"
 #include "multisig/multisig_account.h"
 #include "multisig/multisig_kex_msg.h"
+#include "multisig/multisig_sal.h"
 #include "ringct/rctOps.h"
 #include "wallet/wallet2.h"
 
@@ -496,4 +501,96 @@ TEST(multisig, multisig_kex_msg)
   EXPECT_EQ(msg_rnd2.get_msg_pubkeys()[1], msg_rnd2_reverse.get_msg_pubkeys()[1]);
   EXPECT_EQ(msg_rnd2.get_msg_privkey(), crypto::null_skey);
   EXPECT_EQ(msg_rnd2.get_msg_privkey(), msg_rnd2_reverse.get_msg_privkey());
+}
+
+TEST(multisig, sal_single)
+{
+  rct::key message = rct::skGen();
+  rct::key k = rct::skGen();
+  rct::key t = rct::identity();
+  rct::key K;
+  rct::addKeys1(K, k, rct::pk2rct(crypto::get_T()));
+  // rct::addKeys1(K, k, rct::identity());
+  rct::key kU = rct::scalarmultKey(rct::pk2rct(crypto::get_U()), k);
+  crypto::key_image KI;
+  crypto::generate_key_image(rct::rct2pk(K), rct::rct2sk(k), KI);
+  crypto::key_image KI_base;
+  crypto::generate_key_image(rct::rct2pk(K), rct::rct2sk(rct::identity()), KI_base);
+  rct::key C = rct::pkGen();
+
+  rct::key alpha1 = rct::skGen();
+  rct::key alpha2 = rct::skGen();
+  std::vector<crypto::secret_key> local_nonce_privkeys{rct::rct2sk(alpha1), rct::rct2sk(alpha2)};
+  rct::keyV total_alpha_G{rct::scalarmultBase(alpha1), rct::scalarmultBase(alpha2)};
+  rct::keyV total_alpha_H{
+    rct::scalarmultKey(rct::ki2rct(KI_base), alpha1),
+    rct::scalarmultKey(rct::ki2rct(KI_base), alpha2)
+  };
+  rct::keyV total_alpha_U{
+    rct::scalarmultKey(rct::pk2rct(crypto::get_U()), alpha1),
+    rct::scalarmultKey(rct::pk2rct(crypto::get_U()), alpha2)
+  };
+
+  rct::key r_o = rct::skGen();
+  rct::key r_i = rct::skGen();
+  rct::key r_r_i = rct::skGen();
+  rct::key r_c = rct::skGen();
+  fcmp_pp::RerandomizedEnote rr_enote = fcmp_pp::rerandomized_enote_from_parts(
+      rct::rct2pk(K),
+      true, // old Hp() function
+      rct::rct2pk(C),
+      r_o.bytes,
+      r_i.bytes,
+      r_r_i.bytes,
+      r_c.bytes
+  );
+
+  // First try to make a normal SAL proof with the rust API.
+  FcmpRerandomizedOutputCompressed raw_enote = fcmp_pp::rerandomized_enote_to_raw(rr_enote);
+  std::pair<fcmp_pp::FcmpPpSalProof, crypto::key_image> direct_sal = fcmp_pp::prove_sal(
+    rct::rct2hash(message),
+    rct::rct2sk(k),
+    rct::rct2sk(t),
+    raw_enote
+  );
+  EXPECT_TRUE(
+    fcmp_pp::verify_sal(
+      rct::rct2hash(message),
+      raw_enote.input,
+      KI,
+      direct_sal.first
+    )
+  );
+
+  fcmp_pp::SalProof proof_reconstructed{};
+  memcpy(&proof_reconstructed, direct_sal.first.data(), sizeof(fcmp_pp::SalProof));
+  EXPECT_EQ(direct_sal.first, fcmp_pp::sal_proof_to_bytes(proof_reconstructed));
+  EXPECT_TRUE(
+    multisig::validate_sal_proof(
+      message,
+      rr_enote.keys,
+      KI,
+      proof_reconstructed
+    )
+  );
+
+  // Second make a multisig proof with the C++ API.
+  multisig::SalProofMultisigProposal proposal;
+  multisig::make_sal_multisig_proposal(message, K, kU, KI, rr_enote, proposal);
+
+  multisig::SalProofMultisigPartial partial_sig;
+  multisig::make_sal_multisig_partial_sig(
+    1, // one signer
+    proposal,
+    rct::rct2sk(k),
+    rct::rct2sk(t),
+    total_alpha_G,
+    total_alpha_H,
+    total_alpha_U,
+    local_nonce_privkeys,
+    partial_sig
+  );
+
+  fcmp_pp::SalProof proof;
+  multisig::finalize_sal_multisig_proof(std::vector{partial_sig}, proof);
 }

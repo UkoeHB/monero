@@ -206,7 +206,7 @@ dependencies = [
 [[package]]
 name = "ec-divisors"
 version = "0.1.0"
-source = "git+https://github.com/monero-oxide/monero-oxide?rev=0e438aed2cce5c0ab8a935916c1a89bb0077f97f#0e438aed2cce5c0ab8a935916c1a89bb0077f97f"
+source = "git+https://github.com/UkoeHB/monero-oxide?rev=73eae91ebb74c44bbe87c1445fdce68545394f20#73eae91ebb74c44bbe87c1445fdce68545394f20"
 dependencies = [
  "crypto-bigint",
  "dalek-ff-group 0.5.0",
@@ -308,7 +308,7 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 [[package]]
 name = "full-chain-membership-proofs"
 version = "0.1.0"
-source = "git+https://github.com/monero-oxide/monero-oxide?rev=0e438aed2cce5c0ab8a935916c1a89bb0077f97f#0e438aed2cce5c0ab8a935916c1a89bb0077f97f"
+source = "git+https://github.com/UkoeHB/monero-oxide?rev=73eae91ebb74c44bbe87c1445fdce68545394f20#73eae91ebb74c44bbe87c1445fdce68545394f20"
 dependencies = [
  "blake2",
  "ciphersuite",
@@ -332,7 +332,7 @@ checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
 [[package]]
 name = "generalized-bulletproofs"
 version = "0.1.0"
-source = "git+https://github.com/monero-oxide/monero-oxide?rev=0e438aed2cce5c0ab8a935916c1a89bb0077f97f#0e438aed2cce5c0ab8a935916c1a89bb0077f97f"
+source = "git+https://github.com/UkoeHB/monero-oxide?rev=73eae91ebb74c44bbe87c1445fdce68545394f20#73eae91ebb74c44bbe87c1445fdce68545394f20"
 dependencies = [
  "blake2",
  "ciphersuite",
@@ -348,7 +348,7 @@ dependencies = [
 [[package]]
 name = "generalized-bulletproofs-circuit-abstraction"
 version = "0.1.0"
-source = "git+https://github.com/monero-oxide/monero-oxide?rev=0e438aed2cce5c0ab8a935916c1a89bb0077f97f#0e438aed2cce5c0ab8a935916c1a89bb0077f97f"
+source = "git+https://github.com/UkoeHB/monero-oxide?rev=73eae91ebb74c44bbe87c1445fdce68545394f20#73eae91ebb74c44bbe87c1445fdce68545394f20"
 dependencies = [
  "ciphersuite",
  "generalized-bulletproofs",
@@ -359,7 +359,7 @@ dependencies = [
 [[package]]
 name = "generalized-bulletproofs-ec-gadgets"
 version = "0.1.0"
-source = "git+https://github.com/monero-oxide/monero-oxide?rev=0e438aed2cce5c0ab8a935916c1a89bb0077f97f#0e438aed2cce5c0ab8a935916c1a89bb0077f97f"
+source = "git+https://github.com/UkoeHB/monero-oxide?rev=73eae91ebb74c44bbe87c1445fdce68545394f20#73eae91ebb74c44bbe87c1445fdce68545394f20"
 dependencies = [
  "ciphersuite",
  "generalized-bulletproofs-circuit-abstraction",
@@ -422,7 +422,7 @@ dependencies = [
 [[package]]
 name = "helioselene"
 version = "0.1.0"
-source = "git+https://github.com/monero-oxide/monero-oxide?rev=0e438aed2cce5c0ab8a935916c1a89bb0077f97f#0e438aed2cce5c0ab8a935916c1a89bb0077f97f"
+source = "git+https://github.com/UkoeHB/monero-oxide?rev=73eae91ebb74c44bbe87c1445fdce68545394f20#73eae91ebb74c44bbe87c1445fdce68545394f20"
 dependencies = [
  "blake2",
  "ciphersuite",
@@ -495,7 +495,7 @@ dependencies = [
 [[package]]
 name = "monero-ed25519"
 version = "0.1.0"
-source = "git+https://github.com/monero-oxide/monero-oxide?rev=0e438aed2cce5c0ab8a935916c1a89bb0077f97f#0e438aed2cce5c0ab8a935916c1a89bb0077f97f"
+source = "git+https://github.com/UkoeHB/monero-oxide?rev=73eae91ebb74c44bbe87c1445fdce68545394f20#73eae91ebb74c44bbe87c1445fdce68545394f20"
 dependencies = [
  "blake2",
  "crypto-bigint",
@@ -511,7 +511,7 @@ dependencies = [
 [[package]]
 name = "monero-fcmp-plus-plus"
 version = "0.1.0"
-source = "git+https://github.com/monero-oxide/monero-oxide?rev=0e438aed2cce5c0ab8a935916c1a89bb0077f97f#0e438aed2cce5c0ab8a935916c1a89bb0077f97f"
+source = "git+https://github.com/UkoeHB/monero-oxide?rev=73eae91ebb74c44bbe87c1445fdce68545394f20#73eae91ebb74c44bbe87c1445fdce68545394f20"
 dependencies = [
  "blake2",
  "ciphersuite",
@@ -536,7 +536,7 @@ dependencies = [
 [[package]]
 name = "monero-fcmp-plus-plus-generators"
 version = "0.1.0"
-source = "git+https://github.com/monero-oxide/monero-oxide?rev=0e438aed2cce5c0ab8a935916c1a89bb0077f97f#0e438aed2cce5c0ab8a935916c1a89bb0077f97f"
+source = "git+https://github.com/UkoeHB/monero-oxide?rev=73eae91ebb74c44bbe87c1445fdce68545394f20#73eae91ebb74c44bbe87c1445fdce68545394f20"
 dependencies = [
  "ciphersuite",
  "full-chain-membership-proofs",
@@ -551,7 +551,7 @@ dependencies = [
 [[package]]
 name = "monero-io"
 version = "0.1.0"
-source = "git+https://github.com/monero-oxide/monero-oxide?rev=0e438aed2cce5c0ab8a935916c1a89bb0077f97f#0e438aed2cce5c0ab8a935916c1a89bb0077f97f"
+source = "git+https://github.com/UkoeHB/monero-oxide?rev=73eae91ebb74c44bbe87c1445fdce68545394f20#73eae91ebb74c44bbe87c1445fdce68545394f20"
 dependencies = [
  "std-shims",
 ]
@@ -559,7 +559,7 @@ dependencies = [
 [[package]]
 name = "monero-primitives"
 version = "0.1.0"
-source = "git+https://github.com/monero-oxide/monero-oxide?rev=0e438aed2cce5c0ab8a935916c1a89bb0077f97f#0e438aed2cce5c0ab8a935916c1a89bb0077f97f"
+source = "git+https://github.com/UkoeHB/monero-oxide?rev=73eae91ebb74c44bbe87c1445fdce68545394f20#73eae91ebb74c44bbe87c1445fdce68545394f20"
 dependencies = [
  "sha3",
 ]

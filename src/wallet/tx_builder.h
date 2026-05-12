@@ -72,9 +72,8 @@ struct multisig_sig
     // proofs: SAL
     rct::keyM total_alpha_U;
     // CLSAG: first challenge for each input 'i'
-    // SAL: ignored
+    // SAL: partial `s_z`
     rct::keyV c_0;
-    // Partial response for the signature. Accumulates as signers add partial signatures.
     // CLSAG: partial response at hidden input index 'l'
     // SAL: partial `s_alpha`
     rct::keyV s;
@@ -160,7 +159,7 @@ struct pending_tx
     crypto::secret_key multisig_tx_key_entropy;
     // fcmp_pp::FcmpRerandomizedOutputCompressed (just the r_* values) for each input 'i'.
     // Equivalent to [r_o | r_i | r_r_i | r_c]
-    std::vector<std::array<uint8_t, 4 * 32>> multisig_output_rr;
+    std::vector<std::vector<crypto::secret_key>> multisig_enote_rr;
     // Aggregate k U term for each input 'i'.
     // total_k = sum(k_partial U) + k_shared U
     // proofs: SAL

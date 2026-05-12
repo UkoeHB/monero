@@ -136,9 +136,10 @@ BEGIN_SERIALIZE_OBJECT_FN(pending_tx)
     }
     FIELD_F(multisig_tx_key_entropy)
     if (version >= 3)
-        FIELD_F(multisig_rr_output)
-    if (version >= 3)
+    {
+        FIELD_F(multisig_enote_rr)
         FIELD_F(multisig_total_kU)
+    }
 END_SERIALIZE()
 //-------------------------------------------------------------------------------------------------------------------
 } //namespace wallet

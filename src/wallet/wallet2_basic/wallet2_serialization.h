@@ -47,15 +47,20 @@ BEGIN_SERIALIZE_OBJECT_FN(hashchain)
 END_SERIALIZE()
 
 BEGIN_SERIALIZE_OBJECT_FN(multisig_info::LR)
+    //TODO: optional version
     FIELD_F(m_L)
     FIELD_F(m_R)
+    //TODO: v1
     FIELD_F(m_U)
 END_SERIALIZE()
 
 BEGIN_SERIALIZE_OBJECT_FN(multisig_info)
+    //TODO: optional version
     FIELD_F(m_signer)
     FIELD_F(m_LR)
     FIELD_F(m_partial_key_images)
+    //TODO: v1
+    FIELD_F(m_partial_kU)
 END_SERIALIZE()
 
 BEGIN_SERIALIZE_OBJECT_FN(transfer_details)

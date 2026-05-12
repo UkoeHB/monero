@@ -373,6 +373,7 @@ inline unsigned char* to_bytes(crypto::ec_coord &coord) { return &reinterpret_ca
 inline const unsigned char* to_bytes(const crypto::ec_coord &coord) { return &reinterpret_cast<const unsigned char&>(coord); }
 
 CRYPTO_MAKE_HASHABLE(ec_point)
+CRYPTO_MAKE_HASHABLE(ec_scalar)
 CRYPTO_MAKE_HASHABLE(public_key)
 CRYPTO_MAKE_HASHABLE_CONSTANT_TIME(secret_key)
 CRYPTO_MAKE_HASHABLE_CONSTANT_TIME(public_key_memsafe)

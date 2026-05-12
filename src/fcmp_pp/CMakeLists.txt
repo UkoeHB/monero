@@ -30,8 +30,8 @@ set(fcmp_pp_sources
   curve_trees.cpp
   fcmp_pp_crypto.cpp
   fcmp_pp_types.cpp
+  fcmp_pp_types_interop.cpp
   prove.cpp
-  sal.cpp
   tower_cycle.cpp
   tree_cache.cpp)
 

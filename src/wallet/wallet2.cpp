@@ -74,6 +74,7 @@ using namespace epee;
 #include "int-util.h"
 #include "profile_tools.h"
 #include "crypto/crypto.h"
+#include "crypto/generators.h"
 #include "serialization/binary_utils.h"
 #include "serialization/string.h"
 #include "cryptonote_basic/blobdatatype.h"
@@ -10322,15 +10323,17 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
           memwipe(static_cast<rct::key *>(alpha.data()), alpha.size() * sizeof(rct::key));
         });
         for (std::size_t m = 0; m < num_alpha_components; ++m) {
+          crypto::secret_key a;
           const multisig_nonces nonces = get_multisig_composite_nonces(
             selected_transfers[ins_order[j]],
             ignore_sets[i],
             all_used_L,  //collect all public L nonces used by this tx proposal (set of tx attempts) to avoid duplicates
             sig.used_L,  //record the public L nonces used by this tx input to this tx attempt, for coordination with other signers
-            alpha[m]
+            a
           );
-          sig.total_alpha_G[j][m] = nonces.L;
-          sig.total_alpha_H[j][m] = nonces.R;
+          alpha[m] = rct::sk2rct(a);
+          sig.total_alpha_G[j][m] = nonces.m_L;
+          sig.total_alpha_H[j][m] = nonces.m_R;
           // U is not used by CLSAG !
         }
 
@@ -14497,21 +14500,21 @@ void wallet2::get_multisig_k(size_t idx, const std::unordered_set<rct::key> &use
   THROW_WALLET_EXCEPTION(tools::error::multisig_export_needed);
 }
 //----------------------------------------------------------------------------------------------------
-multisig_nonces wallet2::get_multisig_nonces(size_t n, const rct::key &k) const
+wallet2::multisig_nonces wallet2::get_multisig_nonces(size_t n, const rct::key &k) const
 {
   CHECK_AND_ASSERT_THROW_MES(n < m_transfers.size(), "Bad m_transfers index");
   multisig_nonces nonces{};
   multisig::generate_multisig_nonces(
     m_transfers[n].get_public_key(),
     rct::rct2sk(k),
-    (crypto::public_key&)nonces.L,
-    (crypto::public_key&)nonces.R,
-    (crypto::public_key&)nonces.U,
+    (crypto::public_key&)nonces.m_L,
+    (crypto::public_key&)nonces.m_R,
+    (crypto::public_key&)nonces.m_U
   );
   return nonces;
 }
 //----------------------------------------------------------------------------------------------------
-multisig_nonces wallet2::get_multisig_composite_nonces(
+wallet2::multisig_nonces wallet2::get_multisig_composite_nonces(
   size_t n,
   const std::unordered_set<crypto::public_key> &ignore_set,
   std::unordered_set<rct::key> &used_L,
@@ -14521,8 +14524,9 @@ multisig_nonces wallet2::get_multisig_composite_nonces(
 {
   CHECK_AND_ASSERT_THROW_MES(n < m_transfers.size(), "Bad transfer index");
 
-  k_out = rct::skGen();
-  multisig_nonces nonces = get_multisig_nonces(n, k_out);
+  rct::key k = rct::skGen();
+  multisig_nonces nonces = get_multisig_nonces(n, k);
+  k_out = rct::rct2sk(k);
 
   // pick a L/R pair from every other participant but one
   size_t n_signers_used = 1;
@@ -14537,9 +14541,9 @@ multisig_nonces wallet2::get_multisig_composite_nonces(
         continue;
       used_L.insert(lr.m_L);
       new_used_L.insert(lr.m_L);
-      rct::addKeys(nonces.L, nonces.L, lr.m_L);
-      rct::addKeys(nonces.R, nonces.R, lr.m_R);
-      rct::addKeys(nonces.U, nonces.U, lr.m_U);
+      rct::addKeys(nonces.m_L, nonces.m_L, lr.m_L);
+      rct::addKeys(nonces.m_R, nonces.m_R, lr.m_R);
+      rct::addKeys(nonces.m_U, nonces.m_U, lr.m_U);
       ++n_signers_used;
       break;
     }
@@ -14679,7 +14683,7 @@ cryptonote::blobdata wallet2::export_multisig()
       crypto::generate_key_image(td.get_public_key(), multisig_keys[m], ki);
       info[n].m_partial_key_images.push_back(ki);
 
-      rct::key kU = rct::scalarmultKey(rct::pk2rct(get_U()), rct::sk2rct(multisig_keys[m]));
+      rct::key kU = rct::scalarmultKey(rct::pk2rct(crypto::get_U()), rct::sk2rct(multisig_keys[m]));
       info[n].m_partial_kU.push_back(rct::rct2pk(kU));
     }
 
@@ -14807,7 +14811,7 @@ size_t wallet2::import_multisig(std::vector<cryptonote::blobdata> blobs, bool re
       }
       for (const auto &partial_kU: e.m_partial_kU)
       {
-        CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(rct::pk2rct(m_partial_kU)), "Multisig partial k U is not in the main subgroup");
+        CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(rct::pk2rct(partial_kU)), "Multisig partial k U is not in the main subgroup");
       }
     }
 
