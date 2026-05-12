@@ -83,13 +83,6 @@ struct SalProofMultisigPartial final
     fcmp_pp::SalProof partial_proof;
 };
 
-bool validate_sal_proof(
-    const rct::key &message,
-    const fcmp_pp::RerandomizedEnoteKeys &keys,
-    const crypto::key_image &KI,
-    const fcmp_pp::SalProof &proof
-);
-
 /**
 * brief: make_sal_multisig_proposal - propose to make a multisig sal proof
 * param: message - message to insert in the proof's Fiat-Shamir transform hash
@@ -143,6 +136,19 @@ void make_sal_multisig_partial_sig(
 void finalize_sal_multisig_proof(
     const std::vector<SalProofMultisigPartial> &partial_sigs,
     fcmp_pp::SalProof &proof_out
+);
+/**
+* brief: verify_sal_proof - validates a sal proof (equivalent to fcmp_pp::verify_sal)
+* param: message - the message signed
+* param: keys - masked enote keys for the signature
+* param: KI - the key image associated with the masked enote
+* param: proof - sal proof to verify
+*/
+bool verify_sal_proof(
+    const rct::key &message,
+    const fcmp_pp::RerandomizedEnoteKeys &keys,
+    const crypto::key_image &KI,
+    const fcmp_pp::SalProof &proof
 );
 
 } //namespace multisig

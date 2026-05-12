@@ -566,7 +566,7 @@ TEST(multisig, sal_single)
   memcpy(&proof_reconstructed, direct_sal.first.data(), sizeof(fcmp_pp::SalProof));
   EXPECT_EQ(direct_sal.first, fcmp_pp::sal_proof_to_bytes(proof_reconstructed));
   EXPECT_TRUE(
-    multisig::validate_sal_proof(
+    multisig::verify_sal_proof(
       message,
       rr_enote.keys,
       KI,

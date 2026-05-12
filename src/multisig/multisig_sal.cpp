@@ -90,130 +90,6 @@ static rct::key multisig_binonce_merge_factor(
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
-//static
-bool validate_sal_proof(
-    const rct::key &message,
-    const fcmp_pp::RerandomizedEnoteKeys &keys,
-    const crypto::key_image &KI,
-    const fcmp_pp::SalProof &proof
-){
-    std::vector<rct::MultiexpData> data1{}, data2{};
-
-    const rct::key O_tilde = rct::pk2rct(keys.O_tilde);
-    const rct::key I_tilde = rct::pk2rct(keys.I_tilde);
-    const rct::key C_tilde = rct::pk2rct(keys.C_tilde);
-    const rct::key R = rct::pk2rct(keys.R);
-    const rct::key L = rct::ki2rct(KI);
-    const rct::key P = rct::pk2rct(proof.P);
-    const rct::key A = rct::pk2rct(proof.A);
-    const rct::key B = rct::pk2rct(proof.B);
-    const rct::key R_O = rct::pk2rct(proof.R_O);
-    const rct::key R_P = rct::pk2rct(proof.R_P);
-    const rct::key R_L = rct::pk2rct(proof.R_L);
-
-    const rct::key s_alpha = *(rct::key*)&proof.s_alpha;
-    const rct::key s_beta = *(rct::key*)&proof.s_beta;
-    const rct::key s_delta = *(rct::key*)&proof.s_delta;
-    const rct::key s_y = *(rct::key*)&proof.s_y;
-    const rct::key s_z = *(rct::key*)&proof.s_z;
-    const rct::key s_r_p = *(rct::key*)&proof.s_r_p;
-
-    const rct::key G = rct::G;
-    const rct::key V = rct::pk2rct(crypto::get_V());
-    const rct::key U = rct::pk2rct(crypto::get_U());
-    const rct::key T = rct::pk2rct(crypto::get_T());
-
-    // e = H_n(message, O_tilde, I_tilde, C_tilde, R, L, P, A, B, R_O, R_P, R_L)
-    // note: keyed with '0' for compatibility with the rust hash API
-    std::vector<rct::key> challenge_data{message, O_tilde, I_tilde, C_tilde, R, L, P, A, B, R_O, R_P, R_L};
-    rct::key e;
-    carrot::derive_scalar(challenge_data.data(), 32 * challenge_data.size(), rct::Z.bytes, e.bytes);
-
-    // BP+ check
-    // e^2 P + e A + B == s_alpha e G + s_beta e V + s_alpha s_beta U + s_delta T
-    rct::key e_squared;
-    sc_mul(e_squared.bytes, e.bytes, e.bytes);
-    rct::key s_alpha_e;
-    sc_mul(s_alpha_e.bytes, e.bytes, s_alpha.bytes);
-    rct::key s_beta_e;
-    sc_mul(s_beta_e.bytes, e.bytes, s_beta.bytes);
-    rct::key s_alpha_beta;
-    sc_mul(s_alpha_beta.bytes, s_alpha.bytes, s_beta.bytes);
-
-    data1.emplace_back(e_squared, P);
-    data1.emplace_back(e, A);
-    data1.emplace_back(rct::I, B);
-    // ==
-    data2.emplace_back(s_alpha_e, G);
-    data2.emplace_back(s_beta_e, V);
-    data2.emplace_back(s_alpha_beta, U);
-    data2.emplace_back(s_delta, T);
-
-    if (rct::straus(data1, NULL, 0) != rct::straus(data2, NULL, 0))
-    {
-        MERROR("sal proof validation failure (BP+ check)");
-        return false;
-    }
-    data1.clear();
-    data2.clear();
-
-    // O_tilde check
-    // R_O + e O_tilde == s_alpha G + s_y T
-    data1.emplace_back(rct::I, R_O);
-    data1.emplace_back(e, O_tilde);
-    // ==
-    data2.emplace_back(s_alpha, G);
-    data2.emplace_back(s_y, T);
-
-    if (rct::straus(data1, NULL, 0) != rct::straus(data2, NULL, 0))
-    {
-        MERROR("sal proof validation failure (O_tilde check)");
-        return false;
-    }
-    data1.clear();
-    data2.clear();
-
-    // P' check
-    // R_P + e * (P - O_tilde - R)) == s_z U + s_r_p T
-    rct::key P_subs;
-    rct::subKeys(P_subs, P, O_tilde);
-    rct::subKeys(P_subs, P_subs, R);
-
-    data1.emplace_back(rct::I, R_P);
-    data1.emplace_back(e, P_subs);
-    // ==
-    data2.emplace_back(s_z, U);
-    data2.emplace_back(s_r_p, T);
-
-    if (rct::straus(data1, NULL, 0) != rct::straus(data2, NULL, 0))
-    {
-        MERROR("sal proof validation failure (P' check)");
-        return false;
-    }
-    data1.clear();
-    data2.clear();
-
-    // L check
-    // R_L + e L == s_alpha I_tilde - s_z U
-    rct::key s_z_negative;
-    sc_sub(s_z_negative.bytes, rct::Z.bytes, s_z.bytes);
-
-    data1.emplace_back(rct::I, R_L);
-    data1.emplace_back(e, L);
-    // ==
-    data2.emplace_back(s_alpha, I_tilde);
-    data2.emplace_back(s_z_negative, U);
-
-    if (rct::straus(data1, NULL, 0) != rct::straus(data2, NULL, 0))
-    {
-        MERROR("sal proof validation failure (L check)");
-        return false;
-    }
-
-    return true;
-}
-//-------------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------------
 void make_sal_multisig_proposal(
     const rct::key &message,
     const rct::key &K,
@@ -552,7 +428,7 @@ void finalize_sal_multisig_proof(
 
     // 1. C++ impl
     CHECK_AND_ASSERT_THROW_MES(
-        validate_sal_proof(
+        verify_sal_proof(
             partial_sigs[0].message,
             partial_sigs[0].rr_enote_keys,
             partial_sigs[0].KI,
@@ -571,6 +447,128 @@ void finalize_sal_multisig_proof(
             raw_proof
         ),
         "finalize sal multisig proof: proof failed to verify on assembly (rust)!");
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool verify_sal_proof(
+    const rct::key &message,
+    const fcmp_pp::RerandomizedEnoteKeys &keys,
+    const crypto::key_image &KI,
+    const fcmp_pp::SalProof &proof
+){
+    std::vector<rct::MultiexpData> data1{}, data2{};
+
+    const rct::key O_tilde = rct::pk2rct(keys.O_tilde);
+    const rct::key I_tilde = rct::pk2rct(keys.I_tilde);
+    const rct::key C_tilde = rct::pk2rct(keys.C_tilde);
+    const rct::key R = rct::pk2rct(keys.R);
+    const rct::key L = rct::ki2rct(KI);
+    const rct::key P = rct::pk2rct(proof.P);
+    const rct::key A = rct::pk2rct(proof.A);
+    const rct::key B = rct::pk2rct(proof.B);
+    const rct::key R_O = rct::pk2rct(proof.R_O);
+    const rct::key R_P = rct::pk2rct(proof.R_P);
+    const rct::key R_L = rct::pk2rct(proof.R_L);
+
+    const rct::key s_alpha = *(rct::key*)&proof.s_alpha;
+    const rct::key s_beta = *(rct::key*)&proof.s_beta;
+    const rct::key s_delta = *(rct::key*)&proof.s_delta;
+    const rct::key s_y = *(rct::key*)&proof.s_y;
+    const rct::key s_z = *(rct::key*)&proof.s_z;
+    const rct::key s_r_p = *(rct::key*)&proof.s_r_p;
+
+    const rct::key G = rct::G;
+    const rct::key V = rct::pk2rct(crypto::get_V());
+    const rct::key U = rct::pk2rct(crypto::get_U());
+    const rct::key T = rct::pk2rct(crypto::get_T());
+
+    // e = H_n(message, O_tilde, I_tilde, C_tilde, R, L, P, A, B, R_O, R_P, R_L)
+    // note: keyed with '0' for compatibility with the rust hash API
+    std::vector<rct::key> challenge_data{message, O_tilde, I_tilde, C_tilde, R, L, P, A, B, R_O, R_P, R_L};
+    rct::key e;
+    carrot::derive_scalar(challenge_data.data(), 32 * challenge_data.size(), rct::Z.bytes, e.bytes);
+
+    // BP+ check
+    // e^2 P + e A + B == s_alpha e G + s_beta e V + s_alpha s_beta U + s_delta T
+    rct::key e_squared;
+    sc_mul(e_squared.bytes, e.bytes, e.bytes);
+    rct::key s_alpha_e;
+    sc_mul(s_alpha_e.bytes, e.bytes, s_alpha.bytes);
+    rct::key s_beta_e;
+    sc_mul(s_beta_e.bytes, e.bytes, s_beta.bytes);
+    rct::key s_alpha_beta;
+    sc_mul(s_alpha_beta.bytes, s_alpha.bytes, s_beta.bytes);
+
+    data1.emplace_back(e_squared, P);
+    data1.emplace_back(e, A);
+    data1.emplace_back(rct::I, B);
+    // ==
+    data2.emplace_back(s_alpha_e, G);
+    data2.emplace_back(s_beta_e, V);
+    data2.emplace_back(s_alpha_beta, U);
+    data2.emplace_back(s_delta, T);
+
+    if (rct::straus(data1, NULL, 0) != rct::straus(data2, NULL, 0))
+    {
+        MERROR("sal proof validation failure (BP+ check)");
+        return false;
+    }
+    data1.clear();
+    data2.clear();
+
+    // O_tilde check
+    // R_O + e O_tilde == s_alpha G + s_y T
+    data1.emplace_back(rct::I, R_O);
+    data1.emplace_back(e, O_tilde);
+    // ==
+    data2.emplace_back(s_alpha, G);
+    data2.emplace_back(s_y, T);
+
+    if (rct::straus(data1, NULL, 0) != rct::straus(data2, NULL, 0))
+    {
+        MERROR("sal proof validation failure (O_tilde check)");
+        return false;
+    }
+    data1.clear();
+    data2.clear();
+
+    // P' check
+    // R_P + e * (P - O_tilde - R)) == s_z U + s_r_p T
+    rct::key P_subs;
+    rct::subKeys(P_subs, P, O_tilde);
+    rct::subKeys(P_subs, P_subs, R);
+
+    data1.emplace_back(rct::I, R_P);
+    data1.emplace_back(e, P_subs);
+    // ==
+    data2.emplace_back(s_z, U);
+    data2.emplace_back(s_r_p, T);
+
+    if (rct::straus(data1, NULL, 0) != rct::straus(data2, NULL, 0))
+    {
+        MERROR("sal proof validation failure (P' check)");
+        return false;
+    }
+    data1.clear();
+    data2.clear();
+
+    // L check
+    // R_L + e L == s_alpha I_tilde - s_z U
+    rct::key s_z_negative;
+    sc_sub(s_z_negative.bytes, rct::Z.bytes, s_z.bytes);
+
+    data1.emplace_back(rct::I, R_L);
+    data1.emplace_back(e, L);
+    // ==
+    data2.emplace_back(s_alpha, I_tilde);
+    data2.emplace_back(s_z_negative, U);
+
+    if (rct::straus(data1, NULL, 0) != rct::straus(data2, NULL, 0))
+    {
+        MERROR("sal proof validation failure (L check)");
+        return false;
+    }
+
+    return true;
 }
 //-------------------------------------------------------------------------------------------------------------------
 } //namespace multisig
