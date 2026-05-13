@@ -307,7 +307,7 @@ void make_sal_multisig_partial_sig(
         L, P, A, B, R_O, R_P, R_L
     };
     rct::key e;
-    carrot::derive_scalar(challenge_data.data(), 32 * challenge_data.size(), rct::Z.bytes, e.bytes);
+    carrot::derive_scalar(challenge_data.data(), 32 * challenge_data.size(), nullptr, e.bytes);
 
     // s_beta = beta + e * r_i
     crypto::ec_scalar s_beta;
@@ -482,10 +482,9 @@ bool verify_sal_proof(
     const rct::key T = rct::pk2rct(crypto::get_T());
 
     // e = H_n(message, O_tilde, I_tilde, C_tilde, R, L, P, A, B, R_O, R_P, R_L)
-    // note: keyed with '0' for compatibility with the rust hash API
     std::vector<rct::key> challenge_data{message, O_tilde, I_tilde, C_tilde, R, L, P, A, B, R_O, R_P, R_L};
     rct::key e;
-    carrot::derive_scalar(challenge_data.data(), 32 * challenge_data.size(), rct::Z.bytes, e.bytes);
+    carrot::derive_scalar(challenge_data.data(), 32 * challenge_data.size(), nullptr, e.bytes);
 
     // BP+ check
     // e^2 P + e A + B == s_alpha e G + s_beta e V + s_alpha s_beta U + s_delta T
