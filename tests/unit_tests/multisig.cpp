@@ -34,6 +34,7 @@
 #include "multisig/multisig_account.h"
 #include "multisig/multisig_kex_msg.h"
 #include "multisig/multisig_sal.h"
+#include "multisig/multisig_tx_builder_ringct.h"
 #include "ringct/rctOps.h"
 #include "wallet/wallet2.h"
 
@@ -227,7 +228,7 @@ static void check_results(const std::vector<std::string> &intermediate_infos,
   wallets[0].encrypt_keys("");
 }
 
-static void make_wallets(const unsigned int M, const unsigned int N, const bool force_update)
+static void make_wallets(const unsigned int M, const unsigned int N, const bool force_update, std::vector<tools::wallet2> &wallets_out)
 {
   std::vector<tools::wallet2> wallets(N);
   ASSERT_TRUE(wallets.size() > 1 && wallets.size() <= KEYS_COUNT);
@@ -277,6 +278,8 @@ static void make_wallets(const unsigned int M, const unsigned int N, const bool 
   EXPECT_EQ(total_rounds_required, rounds_complete);
 
   check_results(intermediate_infos, wallets, M);
+
+  wallets_out = std::move(wallets);
 }
 
 static void make_wallets_boosting(std::vector<tools::wallet2>& wallets, unsigned int M)
@@ -379,38 +382,44 @@ static void make_wallets_boosting(std::vector<tools::wallet2>& wallets, unsigned
 
 TEST(multisig, make_1_2)
 {
-  make_wallets(1, 2, false);
-  make_wallets(1, 2, true);
+  std::vector<tools::wallet2> _w;
+  make_wallets(1, 2, false, _w);
+  make_wallets(1, 2, true, _w);
 }
 
 TEST(multisig, make_1_3)
 {
-  make_wallets(1, 3, false);
-  make_wallets(1, 3, true);
+  std::vector<tools::wallet2> _w;
+  make_wallets(1, 3, false, _w);
+  make_wallets(1, 3, true, _w);
 }
 
 TEST(multisig, make_2_2)
 {
-  make_wallets(2, 2, false);
-  make_wallets(2, 2, true);
+  std::vector<tools::wallet2> _w;
+  make_wallets(2, 2, false, _w);
+  make_wallets(2, 2, true, _w);
 }
 
 TEST(multisig, make_3_3)
 {
-  make_wallets(3, 3, false);
-  make_wallets(3, 3, true);
+  std::vector<tools::wallet2> _w;
+  make_wallets(3, 3, false, _w);
+  make_wallets(3, 3, true, _w);
 }
 
 TEST(multisig, make_2_3)
 {
-  make_wallets(2, 3, false);
-  make_wallets(2, 3, true);
+  std::vector<tools::wallet2> _w;
+  make_wallets(2, 3, false, _w);
+  make_wallets(2, 3, true, _w);
 }
 
 TEST(multisig, make_2_4)
 {
-  make_wallets(2, 4, false);
-  make_wallets(2, 4, true);
+  std::vector<tools::wallet2> _w;
+  make_wallets(2, 4, false, _w);
+  make_wallets(2, 4, true, _w);
 }
 
 TEST(multisig, make_2_4_boosting)
@@ -503,7 +512,7 @@ TEST(multisig, multisig_kex_msg)
   EXPECT_EQ(msg_rnd2.get_msg_privkey(), msg_rnd2_reverse.get_msg_privkey());
 }
 
-TEST(multisig, sal_single)
+TEST(multisig, sal_1_of_1)
 {
   rct::key message = rct::skGen();
   rct::key k = rct::skGen();
@@ -593,4 +602,109 @@ TEST(multisig, sal_single)
 
   fcmp_pp::SalProof proof;
   multisig::finalize_sal_multisig_proof(std::vector{partial_sig}, proof);
+}
+
+TEST(multisig, sal_2_of_3)
+{
+  // Setup multisig accounts
+  std::vector<tools::wallet2> wallets{};
+  make_wallets(2, 3, false, wallets);
+  std::vector<const cryptonote::account_keys*> keys{};
+  for (tools::wallet2 &w : wallets)
+  {
+    w.decrypt_keys("");
+    keys.emplace_back(&w.get_account().get_keys());
+  }
+
+  // Prep key sets for signing between signers 0 and 1
+  size_t num_signers = 2;
+
+  rct::key k_agg = rct::Z;
+  std::unordered_set<rct::key> seen_keys{};
+  std::vector<crypto::secret_key> keys_for_signing{};
+  for (size_t i = 0; i < num_signers; ++i)
+  {
+    crypto::secret_key &signing_key = keys_for_signing.emplace_back(rct::rct2sk(rct::Z));
+
+    for (const crypto::secret_key &k : keys[i]->m_multisig_keys)
+    {
+      if (seen_keys.find(rct::sk2rct(k)) != seen_keys.end())
+        continue;
+      sc_add(k_agg.bytes, k_agg.bytes, to_bytes(k));
+      sc_add(to_bytes(signing_key), to_bytes(signing_key), to_bytes(k));
+      seen_keys.insert(rct::sk2rct(k));
+    }
+  }
+
+  // Prep signing
+  // note: in practice, kU and KI would be produced from pieces shared by multisig participants
+  rct::key message = rct::skGen();
+  rct::key K = rct::pk2rct(keys[0]->m_account_address.m_spend_public_key);
+  EXPECT_EQ(K, rct::scalarmultBase(k_agg));
+  rct::key kU = rct::scalarmultKey(rct::pk2rct(crypto::get_U()), k_agg);
+  crypto::key_image KI;
+  crypto::generate_key_image(rct::rct2pk(K), rct::rct2sk(k_agg), KI);
+  crypto::key_image KI_base;
+  crypto::generate_key_image(rct::rct2pk(K), rct::rct2sk(rct::identity()), KI_base);
+  rct::key C = rct::pkGen();
+
+  std::vector<std::vector<crypto::secret_key>> alphas;
+  rct::keyV total_alpha_G(multisig::signing::kAlphaComponents, rct::I);
+  rct::keyV total_alpha_H(multisig::signing::kAlphaComponents, rct::I);
+  rct::keyV total_alpha_U(multisig::signing::kAlphaComponents, rct::I);
+  for (size_t i = 0; i < num_signers; ++i)
+  {
+    rct::keyV signer_alphas = rct::skvGen(multisig::signing::kAlphaComponents);
+
+    for (size_t n = 0; n < multisig::signing::kAlphaComponents; ++n)
+    {
+      rct::addKeys(total_alpha_G[n], total_alpha_G[n], rct::scalarmultBase(signer_alphas[n]));
+      rct::addKeys(total_alpha_H[n], total_alpha_H[n], rct::scalarmultKey(rct::ki2rct(KI_base), signer_alphas[n]));
+      rct::addKeys(total_alpha_U[n], total_alpha_U[n], rct::scalarmultKey(rct::pk2rct(crypto::get_U()), signer_alphas[n]));
+    }
+
+    std::vector<crypto::secret_key> sk_alphas;
+    for (const rct::key &alpha : signer_alphas)
+      sk_alphas.emplace_back(rct::rct2sk(alpha));
+    alphas.emplace_back(sk_alphas);
+  }
+
+  rct::key r_o = rct::skGen();
+  rct::key r_i = rct::skGen();
+  rct::key r_r_i = rct::skGen();
+  rct::key r_c = rct::skGen();
+  fcmp_pp::RerandomizedEnote rr_enote = fcmp_pp::rerandomized_enote_from_parts(
+      rct::rct2pk(K),
+      true, // old Hp() function
+      rct::rct2pk(C),
+      r_o.bytes,
+      r_i.bytes,
+      r_r_i.bytes,
+      r_c.bytes
+  );
+
+  // Proposal
+  multisig::SalProofMultisigProposal proposal;
+  multisig::make_sal_multisig_proposal(message, K, kU, KI, rr_enote, proposal);
+
+  // Partial sigs from signers
+  std::vector<multisig::SalProofMultisigPartial> partial_sigs;
+  for (size_t i = 0; i < num_signers; ++i)
+  {
+    multisig::make_sal_multisig_partial_sig(
+      num_signers,
+      proposal,
+      keys_for_signing[i],
+      rct::rct2sk(rct::Z),
+      total_alpha_G,
+      total_alpha_H,
+      total_alpha_U,
+      alphas[i],
+      partial_sigs.emplace_back()
+    );
+  }
+
+  // Finalize proof
+  fcmp_pp::SalProof proof;
+  multisig::finalize_sal_multisig_proof(partial_sigs, proof);
 }
