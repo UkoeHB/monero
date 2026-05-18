@@ -938,7 +938,8 @@ static tools::wallet::pending_tx finalize_all_proofs_from_transfer_details_as_pe
     *w.get_spend_device());
 }
 
-static tools::wallet::pending_tx finalize_all_proofs_from_transfer_details_as_multisig_pending_tx(
+// Constructs a `pending_tx` for multisig signing with partially-signed SAL proofs and no membership proofs.
+static tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pending_tx(
     const carrot::CarrotTransactionProposalV1 &tx_proposal,
     const tools::wallet2 &w)
 {
@@ -964,14 +965,13 @@ static tools::wallet::pending_tx finalize_all_proofs_from_transfer_details_as_mu
     all_multisig_info[i] = &td.m_multisig_info;
   }
 
-  return tools::wallet::finalize_all_fcmp_pp_proofs_as_multisig_pending_tx(
+  // Construct `pending_tx`
+  return tools::wallet::tx_proposal_to_multisig_pending_tx(
     tx_proposal,
-    w.get_tree_cache_ref(),
-    w.get_curve_trees_ref(),
     *w.get_address_device(),
     *w.get_view_incoming_key_device(),
     w.get_view_balance_secret_device().get(),
-    *w.get_spend_device());
+    this->m_account.get_keys().m_multisig_keys);
 }
 
 uint64_t get_outgoing_amount(const cryptonote::transaction &tx, const uint64_t amount_spent)
@@ -992,7 +992,7 @@ static std::vector<tools::wallet::pending_tx> carrot_tx_proposals_to_pending_txs
   for (const carrot::CarrotTransactionProposalV1 &tx_proposal : tx_proposals)
   {
     if (w.m_multisig)
-      ptx_vector.push_back(::finalize_all_proofs_from_transfer_details_as_multisig_pending_tx(tx_proposal, w));
+      ptx_vector.push_back(::transfer_details_and_tx_proposal_to_multisig_pending_tx(tx_proposal, w));
     else if (w.watch_only())
       ptx_vector.push_back(make_pending_carrot_tx(tx_proposal, /*sorted_input_key_images=*/{}, k_view_dev));
     else
