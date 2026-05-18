@@ -938,6 +938,42 @@ static tools::wallet::pending_tx finalize_all_proofs_from_transfer_details_as_pe
     *w.get_spend_device());
 }
 
+static tools::wallet::pending_tx finalize_all_proofs_from_transfer_details_as_multisig_pending_tx(
+    const carrot::CarrotTransactionProposalV1 &tx_proposal,
+    const tools::wallet2 &w)
+{
+  // Pull multisig info from the selected transfers.
+  const std::unordered_map<crypto::public_key, size_t> best_transfer_by_ota =
+    tools::wallet::collect_non_burned_transfers_by_onetime_address(w.m_transfers);
+
+  size_t num_inputs = tx_proposal.input_proposals.size();
+  // POINTER SAFETY
+  // - thread-safe read access to `tools::wallet2`
+  // - pointers not returned from this function
+  std::vector<const *std::vector<multisig_info>> all_multisig_info(num_inputs, nullptr);
+
+  for (size_t i = 0; i < num_inputs; ++i) {
+    const auto &input_proposal = tx_proposal.input_proposals[i];
+
+    // Look up transfer details
+    const auto best_it = best_transfer_by_ota.find(onetime_address_ref(input_proposal));
+    CHECK_AND_ASSERT_THROW_MES(best_it != best_transfer_by_ota.cend(), "failed collecting multisig details for pending tx");
+    const wallet2_basic::transfer_details &td = transfers.at(best_it->second);
+
+    // Save info ptr
+    all_multisig_info[i] = &td.m_multisig_info;
+  }
+
+  return tools::wallet::finalize_all_fcmp_pp_proofs_as_multisig_pending_tx(
+    tx_proposal,
+    w.get_tree_cache_ref(),
+    w.get_curve_trees_ref(),
+    *w.get_address_device(),
+    *w.get_view_incoming_key_device(),
+    w.get_view_balance_secret_device().get(),
+    *w.get_spend_device());
+}
+
 uint64_t get_outgoing_amount(const cryptonote::transaction &tx, const uint64_t amount_spent)
 {
   return tx.version == 1 ? get_outs_money_amount(tx) : (amount_spent - tx.rct_signatures.txnFee);
@@ -955,7 +991,9 @@ static std::vector<tools::wallet::pending_tx> carrot_tx_proposals_to_pending_txs
   ptx_vector.reserve(tx_proposals.size());
   for (const carrot::CarrotTransactionProposalV1 &tx_proposal : tx_proposals)
   {
-    if (w.watch_only())
+    if (w.m_multisig)
+      ptx_vector.push_back(::finalize_all_proofs_from_transfer_details_as_multisig_pending_tx(tx_proposal, w));
+    else if (w.watch_only())
       ptx_vector.push_back(make_pending_carrot_tx(tx_proposal, /*sorted_input_key_images=*/{}, k_view_dev));
     else
       ptx_vector.push_back(::finalize_all_proofs_from_transfer_details_as_pending_tx(tx_proposal, w));
