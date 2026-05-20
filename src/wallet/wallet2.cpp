@@ -938,7 +938,9 @@ static tools::wallet::pending_tx finalize_all_proofs_from_transfer_details_as_pe
     *w.get_spend_device());
 }
 
-// Constructs a `pending_tx` for multisig signing with partially-signed SAL proofs and no membership proofs.
+// Constructs a `pending_tx` for multisig signing with partially-signed SAL proofs.
+// There will be no membership proofs unless the multisig threshold is `1` (in which case
+// the tx will be fully signed and ready to submit).
 static tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pending_tx(
     const carrot::CarrotTransactionProposalV1 &tx_proposal,
     const tools::wallet2 &w)
@@ -965,13 +967,19 @@ static tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pe
     all_multisig_info[i] = &td.m_multisig_info;
   }
 
+  // Prep signers
+  std::vector<std::unordered_set<crypto::public_key>> ignore_sets = w.multisig_attempt_ignore_sets();
+
   // Construct `pending_tx`
   return tools::wallet::tx_proposal_to_multisig_pending_tx(
     tx_proposal,
+    all_multisig_info,
+    ignore_sets,
+    w.m_multisig_threshold,
     *w.get_address_device(),
     *w.get_view_incoming_key_device(),
     w.get_view_balance_secret_device().get(),
-    this->m_account.get_keys().m_multisig_keys);
+    w.get_account().get_multisig_keys());
 }
 
 uint64_t get_outgoing_amount(const cryptonote::transaction &tx, const uint64_t amount_spent)

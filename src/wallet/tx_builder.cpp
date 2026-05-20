@@ -1192,6 +1192,61 @@ cryptonote::transaction finalize_fcmps_and_range_proofs(
     return tx;
 }
 //-------------------------------------------------------------------------------------------------------------------
+void prepare_for_fcmp_pp_proofs(
+    const carrot::CarrotTransactionProposalV1 &tx_proposal,
+    const epee::span<const crypto::public_key> main_address_spend_pubkeys,
+    const carrot::view_incoming_key_device &k_view_incoming_dev,
+    const carrot::view_balance_secret_device *s_view_balance_dev,
+    const std::vector<crypto::key_image> &sorted_input_key_images,
+    std::vector<fcmp_pp::OutputPair> &output_pairs_out,
+    std::vector<carrot::RCTOutputEnoteProposal> &output_enote_proposals_out,
+    carrot::encrypted_payment_id_t &encrypted_payment_id_out,
+    std::vector<FcmpRerandomizedOutputCompressed> &rerandomized_outputs_out,
+    std::unordered_map<crypto::public_key, FcmpRerandomizedOutputCompressed> &rerandomized_outputs_by_ota_out)
+{
+    output_pairs_out.clear();
+    output_enote_proposals_out.clear();
+    rerandomized_outputs_out.clear();
+    rerandomized_outputs_by_ota_out.clear();
+
+    const size_t n_inputs = tx_proposal.input_proposals.size();
+    const size_t n_outputs = tx_proposal.normal_payment_proposals.size()
+        + tx_proposal.selfsend_payment_proposals.size();
+    CHECK_AND_ASSERT_THROW_MES(n_inputs, "no inputs");
+
+    // finalize enotes
+    LOG_PRINT_L3("Getting output enote proposals");
+    std::vector<carrot::RCTOutputEnoteProposal> output_enote_proposals;
+    carrot::encrypted_payment_id_t encrypted_payment_id;
+    carrot::get_output_enote_proposals_from_proposal_v1(tx_proposal,
+        s_view_balance_dev,
+        &k_view_incoming_dev,
+        sorted_input_key_images.at(0),
+        output_enote_proposals_out,
+        encrypted_payment_id_out);
+    CHECK_AND_ASSERT_THROW_MES(output_enote_proposals_out.size() == n_outputs,
+        "unexpected number of output enote proposals");
+
+    // collect input tuples (K_o, C_a, type)
+    output_pairs_out.reserve(n_inputs);
+    for (const carrot::InputProposalV1 &input_proposal : tx_proposal.input_proposals)
+        output_pairs_out.push_back(carrot::to_output_pair(input_proposal));
+
+    // make rerandomized outputs and collect by OTA
+    rerandomized_outputs_out = carrot::generate_rerandomized_inputs_nonrefundable(
+        epee::to_span(output_enote_proposals),
+        epee::to_span(tx_proposal.input_proposals),
+        main_address_spend_pubkeys,
+        k_view_incoming_dev,
+        s_view_balance_dev);
+
+    for (std::size_t input_idx = 0; input_idx < rerandomized_outputs_out.size(); ++input_idx)
+    {
+        const crypto::public_key onetime_address = onetime_address_ref(tx_proposal.input_proposals.at(input_idx));
+        rerandomized_outputs_by_ota_out[onetime_address] = rerandomized_outputs_out.at(input_idx);
+    }
+}
+//-------------------------------------------------------------------------------------------------------------------
 cryptonote::transaction finalize_all_fcmp_pp_proofs(
     const carrot::CarrotTransactionProposalV1 &tx_proposal,
     const fcmp_pp::curve_trees::TreeCacheV1 &tree_cache,
@@ -1220,39 +1275,24 @@ cryptonote::transaction finalize_all_fcmp_pp_proofs(
         sorted_input_key_images,
         &key_image_order);
 
-    // finalize enotes
-    LOG_PRINT_L3("Getting output enote proposals");
-    std::vector<carrot::RCTOutputEnoteProposal> output_enote_proposals;
-    carrot::encrypted_payment_id_t encrypted_payment_id;
-    carrot::get_output_enote_proposals_from_proposal_v1(tx_proposal,
-        s_view_balance_dev,
-        &k_view_incoming_dev,
-        sorted_input_key_images.at(0),
-        output_enote_proposals,
-        encrypted_payment_id);
-    CHECK_AND_ASSERT_THROW_MES(output_enote_proposals.size() == n_outputs,
-        "unexpected number of output enote proposals");
-
-    // collect input tuples (K_o, C_a, type)
-    std::vector<fcmp_pp::OutputPair> output_pairs;
-    output_pairs.reserve(n_inputs);
-    for (const carrot::InputProposalV1 &input_proposal : tx_proposal.input_proposals)
-        output_pairs.push_back(carrot::to_output_pair(input_proposal));
-
-    // make rerandomized outputs and collect by OTA
-    std::vector<FcmpRerandomizedOutputCompressed> rerandomized_outputs = carrot::generate_rerandomized_inputs_nonrefundable(
-        epee::to_span(output_enote_proposals),
-        epee::to_span(tx_proposal.input_proposals),
+    // prepare for proofs
+    std::vector<fcmp_pp::OutputPair> output_pairs{};
+    std::vector<carrot::RCTOutputEnoteProposal> output_enote_proposals{};
+    carrot::encrypted_payment_id_t encrypted_payment_id{};
+    std::vector<FcmpRerandomizedOutputCompressed> rerandomized_outputs{};
+    std::unordered_map<crypto::public_key, FcmpRerandomizedOutputCompressed> rerandomized_outputs_by_ota{};
+    prepare_for_fcmp_pp_proofs(
+        tx_proposal,
         main_address_spend_pubkeys,
         k_view_incoming_dev,
-        s_view_balance_dev);
-
-    std::unordered_map<crypto::public_key, FcmpRerandomizedOutputCompressed> rerandomized_outputs_by_ota;
-    for (std::size_t input_idx = 0; input_idx < rerandomized_outputs.size(); ++input_idx)
-    {
-        const crypto::public_key onetime_address = onetime_address_ref(tx_proposal.input_proposals.at(input_idx));
-        rerandomized_outputs_by_ota[onetime_address] = rerandomized_outputs.at(input_idx);
-    }
+        s_view_balance_dev,
+        sorted_input_key_images,
+        output_pairs,
+        output_enote_proposals,
+        encrypted_payment_id,
+        rerandomized_outputs,
+        rerandomized_outputs_by_ota
+    );
 
     // call spend device to do SA/L proofs for each input
     crypto::hash signable_tx_hash;
