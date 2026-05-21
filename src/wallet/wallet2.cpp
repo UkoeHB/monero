@@ -14602,23 +14602,6 @@ wallet2::multisig_nonces wallet2::get_multisig_composite_nonces(
   return nonces;
 }
 //----------------------------------------------------------------------------------------------------
-crypto::key_image wallet2::get_multisig_composite_key_image(size_t n) const
-{
-  CHECK_AND_ASSERT_THROW_MES(n < m_transfers.size(), "Bad output index");
-
-  const transfer_details &td = m_transfers[n];
-  const crypto::public_key tx_key = get_tx_pub_key_from_received_outs(td);
-  const std::vector<crypto::public_key> additional_tx_keys = cryptonote::get_additional_tx_pub_keys_from_extra(td.m_tx);
-  crypto::key_image ki;
-  std::vector<crypto::key_image> pkis;
-  for (const auto &info: td.m_multisig_info)
-    for (const auto &pki: info.m_partial_key_images)
-      pkis.push_back(pki);
-  bool r = multisig::generate_multisig_composite_key_image(get_account().get_keys(), m_subaddresses, td.get_public_key(), tx_key, additional_tx_keys, td.m_internal_output_index, pkis, ki);
-  THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "Failed to generate key image");
-  return ki;
-}
-//----------------------------------------------------------------------------------------------------
 // Gets the set of participants available for a signature, i.e. those who exchanged multisig infos with us.
 //
 // Assumes the oldest unspent owned output's multisig info (in m_transfers) will contain the most recent result of
@@ -14786,8 +14769,19 @@ void wallet2::update_multisig_rescan_info(const std::vector<std::vector<rct::key
     CHECK_AND_ASSERT_THROW_MES(n < pi.size(), "Bad pi size");
     td.m_multisig_info.push_back(pi[n]);
   }
+
+  crypto::key_image key_image;
+  get_multisig_key_image_from_opening_hint(
+    make_sal_opening_hint_from_transfer_details(td),
+    td.m_multisig_info,
+    this->get_account().get_multisig_keys(),
+    *this->get_address_device(),
+    *this->get_view_incoming_key_device(),
+    this->get_view_balance_secret_device().get(),
+    key_image);
+
   m_key_images.erase(td.m_key_image);
-  td.m_key_image = get_multisig_composite_key_image(n);
+  td.m_key_image = key_image;
   td.m_key_image_known = true;
   td.m_key_image_request = false;
   td.m_key_image_partial = false;
