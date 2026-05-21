@@ -45,6 +45,7 @@ struct RerandomizedEnoteKeys final
     crypto::public_key C_tilde;
 };
 
+RerandomizedEnoteKeys rerandomized_enote_keys_from_raw(const FcmpInputCompressed &raw);
 FcmpInputCompressed rerandomized_enote_keys_to_raw(const RerandomizedEnoteKeys &keys);
 
 /// More useful form of FcmpRerandomizedOutputCompressed for use outside `src/fcmp_pp` (e.g. multisig).
@@ -67,6 +68,7 @@ RerandomizedEnote rerandomized_enote_from_parts(
     const uint8_t r_c[32]
 );
 
+RerandomizedEnote rerandomized_enote_from_raw(const FcmpRerandomizedOutputCompressed &raw);
 FcmpRerandomizedOutputCompressed rerandomized_enote_to_raw(const RerandomizedEnote &enote);
 
 ////

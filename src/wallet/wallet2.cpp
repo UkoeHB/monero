@@ -14524,7 +14524,10 @@ crypto::public_key wallet2::get_multisig_signing_public_key(size_t idx) const
   return get_multisig_signing_public_key(get_account().get_multisig_keys()[idx]);
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::get_multisig_k(size_t idx, const std::unordered_set<rct::key> &used_L, rct::key &nonce)
+// Note: expects `used_L` to be ordered so that `get_multisig_k` lookups during a multisig
+// tx signing attempt will align with how the signing attempt was set up (using exported nonces that
+// should be ordered the same as `m_multisig_k`).
+void wallet2::get_multisig_k(size_t idx, const std::vector<rct::key> &used_L, rct::key &nonce)
 {
   CHECK_AND_ASSERT_THROW_MES(m_multisig, "Wallet is not multisig");
   CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.size(), "idx out of range");
@@ -14536,7 +14539,7 @@ void wallet2::get_multisig_k(size_t idx, const std::unordered_set<rct::key> &use
     // decide whether or not to return a nonce just based on if its pubkey 'L = k*G' is attached to the transfer 'idx'
     rct::key L;
     rct::scalarmultBase(L, k);
-    if (used_L.find(L) != used_L.end())
+    if (std::find(used_L.cbegin(), used_L.cend(), L) != used_L.cend())
     {
       nonce = k;
       memwipe(static_cast<rct::key *>(&k), sizeof(rct::key));  //CRITICAL: a nonce may only be used once!
@@ -14564,7 +14567,7 @@ wallet2::multisig_nonces wallet2::get_multisig_composite_nonces(
   size_t n,
   const std::unordered_set<crypto::public_key> &ignore_set,
   std::unordered_set<rct::key> &used_L,
-  std::unordered_set<rct::key> &new_used_L,
+  std::vector<rct::key> &new_used_L,
   crypto::secret_key &k_out
 ) const
 {
@@ -14586,7 +14589,7 @@ wallet2::multisig_nonces wallet2::get_multisig_composite_nonces(
       if (used_L.find(lr.m_L) != used_L.end())
         continue;
       used_L.insert(lr.m_L);
-      new_used_L.insert(lr.m_L);
+      new_used_L.push(lr.m_L);
       rct::addKeys(nonces.m_L, nonces.m_L, lr.m_L);
       rct::addKeys(nonces.m_R, nonces.m_R, lr.m_R);
       rct::addKeys(nonces.m_U, nonces.m_U, lr.m_U);

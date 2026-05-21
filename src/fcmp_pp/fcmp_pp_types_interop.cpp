@@ -41,6 +41,14 @@
 namespace fcmp_pp
 {
 //----------------------------------------------------------------------------------------------------------------------
+RerandomizedEnoteKeys rerandomized_enote_keys_from_raw(const FcmpInputCompressed &raw)
+{
+    static_assert(sizeof(FcmpInputCompressed) == sizeof(RerandomizedEnoteKeys));
+    RerandomizedEnoteKeys keys{};
+    memcpy(&keys, &raw, sizeof(RerandomizedEnoteKeys));
+    return keys;
+}
+//----------------------------------------------------------------------------------------------------------------------
 FcmpInputCompressed rerandomized_enote_keys_to_raw(const RerandomizedEnoteKeys &keys)
 {
     static_assert(sizeof(FcmpInputCompressed) == sizeof(RerandomizedEnoteKeys));
@@ -78,6 +86,17 @@ RerandomizedEnote rerandomized_enote_from_parts(
     memcpy(&rr_enote.keys.C_tilde, compressed.C_tilde, 32);
 
     return rr_enote;
+}
+//----------------------------------------------------------------------------------------------------------------------
+RerandomizedEnote rerandomized_enote_from_raw(const FcmpRerandomizedOutputCompressed &raw)
+{
+    RerandomizedEnote enote{};
+    enote.keys = rerandomized_enote_keys_from_raw(raw.input);
+    memcpy(enote.r_o.data, &raw.r_o, 32);
+    memcpy(enote.r_i.data, &raw.r_i, 32);
+    memcpy(enote.r_r_i.data, &raw.r_r_i, 32);
+    memcpy(enote.r_c.data, &raw.r_c, 32);
+    return enote;
 }
 //----------------------------------------------------------------------------------------------------------------------
 FcmpRerandomizedOutputCompressed rerandomized_enote_to_raw(const RerandomizedEnote &enote)

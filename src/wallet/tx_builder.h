@@ -50,17 +50,14 @@ namespace wallet
 {
 struct multisig_sig
 {
-    // OLD: does nothing
-    rct::rctSig sigs;
     // Pubkeys of signers who should *not* participate in this signature.
     std::unordered_set<crypto::public_key> ignore;
     // The first nonce in each set of nonces that should be used by this signature.
     // Signers look up their previously-shared nonce sets here before signing.
-    std::unordered_set<rct::key> used_L;
-    // Signers that have already contributed partial signatures to `sigs`.
+    // - It's a flat data structure: [input [alpha# [signer nonce]]]
+    std::vector<rct::key> used_L;
+    // Signers that have already contributed partial signatures to this aggregate signature.
     std::unordered_set<crypto::public_key> signing_keys;
-    // OLD: does nothing
-    rct::multisig_out msout;
 
     // [alpha_1_i G, alpha_2_i G] for each input 'i' (aggregates partial nonces 'L' from all signers).
     // proofs: CLSAG, SAL
@@ -143,6 +140,10 @@ const std::vector<std::uint8_t> &extra_ref(const tx_reconstruct_variant_t&);
 // The convention for destinations is:
 // dests does not include change
 // splitted_dsts (in construction_data) does
+//
+// `pending_tx` that are potentially adversarial (e.g. sourced from a multisig tx proposal)
+// MAY be internally inconsistent. There is no in-library validation. Users MUST independently
+// parse and validate internal consistency.
 struct pending_tx
 {
     cryptonote::transaction tx;
