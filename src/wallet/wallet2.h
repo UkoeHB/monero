@@ -1504,7 +1504,6 @@ private:
     multisig_nonces get_multisig_nonces(size_t n, const rct::key &k) const;
     std::deque<crypto::public_key> multisig_available_signers() const;
     std::vector<std::unordered_set<crypto::public_key>> multisig_attempt_ignore_sets() const;
-    void get_multisig_k(size_t idx, const std::vector<rct::key> &used_L, rct::key &nonce);
     void update_multisig_rescan_info(const std::vector<std::vector<rct::key>> &multisig_k, const std::vector<std::vector<tools::wallet2::multisig_info>> &info, size_t n);
     bool add_rings(const crypto::chacha_key &key, const cryptonote::transaction_prefix &tx);
     bool add_rings(const cryptonote::transaction_prefix &tx);

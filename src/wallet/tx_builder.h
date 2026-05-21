@@ -68,6 +68,10 @@ struct multisig_sig
     // [alpha_1_i U, alpha_2_i U)] for each input 'i' (aggregates partial nonces 'U' from all signers).
     // proofs: SAL
     rct::keyM total_alpha_U;
+    // Aggregate k U term for each input 'i'.
+    // total_k = sum(k_partial U) + k_shared U
+    // proofs: SAL
+    rct::keyV total_kU;
     // CLSAG: first challenge for each input 'i'
     // SAL: partial `s_z`
     rct::keyV c_0;
@@ -163,10 +167,6 @@ struct pending_tx
     // fcmp_pp::FcmpRerandomizedOutputCompressed (just the r_* values) for each input 'i'.
     // Equivalent to [r_o | r_i | r_r_i | r_c]
     std::vector<std::vector<crypto::secret_key>> multisig_enote_rr;
-    // Aggregate k U term for each input 'i'.
-    // total_k = sum(k_partial U) + k_shared U
-    // proofs: SAL
-    rct::keyV multisig_total_kU;
 
     uint32_t subaddr_account;            // subaddress account of your wallet to be used in this transfer
     std::set<uint32_t> subaddr_indices;  // set of address indices used as inputs in this transfer

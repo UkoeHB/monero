@@ -59,6 +59,7 @@ BEGIN_SERIALIZE_OBJECT_FN(multisig_sig)
     FIELD_F(total_alpha_G)
     FIELD_F(total_alpha_H)
     FIELD_F(total_alpha_U)
+    FIELD_F(total_kU)
     FIELD_F(c_0)
     FIELD_F(s)
 END_SERIALIZE()
@@ -136,7 +137,6 @@ BEGIN_SERIALIZE_OBJECT_FN(pending_tx)
     if (version >= 3)
     {
         FIELD_F(multisig_enote_rr)
-        FIELD_F(multisig_total_kU)
     }
 END_SERIALIZE()
 //-------------------------------------------------------------------------------------------------------------------
