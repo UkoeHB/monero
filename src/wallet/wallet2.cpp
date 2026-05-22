@@ -105,6 +105,7 @@ using namespace epee;
 #include "carrot_impl/subaddress_map_legacy.h"
 #include "fcmp_pp/fcmp_pp_types.h"
 #include "tx_builder.h"
+#include "tx_builder_multisig.h"
 #include "tx_builder_serialization.h"
 #include "misc_wallet_utils.h"
 
@@ -947,13 +948,13 @@ static tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pe
 {
   // Pull multisig info from the selected transfers.
   const std::unordered_map<crypto::public_key, size_t> best_transfer_by_ota =
-    tools::wallet::collect_non_burned_transfers_by_onetime_address(w.m_transfers);
+    tools::wallet::collect_non_burned_transfers_by_onetime_address(w.get_all_transfer_details());
 
   size_t num_inputs = tx_proposal.input_proposals.size();
   // POINTER SAFETY
   // - thread-safe read access to `tools::wallet2`
   // - pointers not returned from this function
-  std::vector<const *std::vector<multisig_info>> all_multisig_info(num_inputs, nullptr);
+  std::vector<const std::vector<wallet2_basic::multisig_info>*> all_multisig_info(num_inputs, nullptr);
   std::vector<crypto::key_image> key_images{};
 
   for (size_t i = 0; i < num_inputs; ++i) {
@@ -962,7 +963,7 @@ static tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pe
     // Look up transfer details
     const auto best_it = best_transfer_by_ota.find(onetime_address_ref(input_proposal));
     CHECK_AND_ASSERT_THROW_MES(best_it != best_transfer_by_ota.cend(), "failed collecting multisig details for pending tx");
-    const wallet2_basic::transfer_details &td = transfers.at(best_it->second);
+    const wallet2_basic::transfer_details &td = w.get_transfer_details(best_it->second);
 
     // Save info ptr
     all_multisig_info[i] = &td.m_multisig_info;
@@ -974,30 +975,31 @@ static tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pe
   std::sort(key_images.begin(), key_images.end(), std::greater{});
 
   // Prep signers
-  std::vector<std::unordered_set<crypto::public_key>> ignore_sets = w.multisig_attempt_ignore_sets();
+  const std::vector<std::unordered_set<crypto::public_key>> ignore_sets = w.multisig_attempt_ignore_sets();
 
   // Construct `pending_tx`
+  const size_t threshold = w.get_multisig_status().threshold;
   std::vector<std::vector<multisig::SalProofMultisigPartial>> saved_partial_sigs;
   tools::wallet::pending_tx ptx = tools::wallet::tx_proposal_to_multisig_pending_tx(
     tx_proposal,
     ignore_sets,
     all_multisig_info,
-    w.m_multisig_threshold,
+    threshold,
     w.get_account().get_multisig_keys(),
     *w.get_address_device(),
     *w.get_view_incoming_key_device(),
     w.get_view_balance_secret_device().get(),
-    key_images
+    key_images,
     saved_partial_sigs);
 
-  if (w.m_multisig_threshold == 1)
+  if (threshold == 1)
   {
     CHECK_AND_ASSERT_THROW_MES(
       try_finalize_multisig_tx(
         w.get_tree_cache_ref(),
         w.get_curve_trees_ref(),
         *w.get_address_device(),
-        *w.get_view_incoming_key_device(),
+        w.get_view_incoming_key_device().get(),
         w.get_view_balance_secret_device().get(),
         key_images,
         saved_partial_sigs,
@@ -1026,7 +1028,7 @@ static std::vector<tools::wallet::pending_tx> carrot_tx_proposals_to_pending_txs
   ptx_vector.reserve(tx_proposals.size());
   for (const carrot::CarrotTransactionProposalV1 &tx_proposal : tx_proposals)
   {
-    if (w.m_multisig)
+    if (w.get_multisig_status().multisig_is_active)
       ptx_vector.push_back(::transfer_details_and_tx_proposal_to_multisig_pending_tx(tx_proposal, w));
     else if (w.watch_only())
       ptx_vector.push_back(make_pending_carrot_tx(tx_proposal, /*sorted_input_key_images=*/{}, k_view_dev));
@@ -8588,18 +8590,18 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
       );
       THROW_WALLET_EXCEPTION_IF(nullptr == proposal, error::wallet_internal_error,
         "Expected to parse Carrot tx contruction data in multisig tx set");
-      LOG_PRINT_L1(" " << (n+1) << ": " << proposal.input_proposals.size() << " inputs, using fcmp " <<
+      LOG_PRINT_L1(" " << (n+1) << ": " << proposal->input_proposals.size() << " inputs, using fcmp " <<
         ", signed by " << exported_txs.m_signers.size() << "/" << m_multisig_threshold);
 
       // Pull multisig nonces and key images from the selected transfers.
       const std::unordered_map<crypto::public_key, size_t> best_transfer_by_ota =
-        tools::wallet::collect_non_burned_transfers_by_onetime_address(w.m_transfers);
+        tools::wallet::collect_non_burned_transfers_by_onetime_address(m_transfers);
 
-      size_t num_inputs = proposal.input_proposals.size();
+      size_t num_inputs = proposal->input_proposals.size();
       std::vector<std::vector<rct::key>*> multisig_nonces(num_inputs, nullptr);
 
       for (size_t i = 0; i < num_inputs; ++i) {
-        const auto &input_proposal = proposal.input_proposals[i];
+        const auto &input_proposal = proposal->input_proposals[i];
 
         // Look up transfer details
         const auto best_it = best_transfer_by_ota.find(onetime_address_ref(input_proposal));
@@ -8655,7 +8657,12 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
       }
 
       // Sign
-      multisig_tx_builder = sign_multisig_partial_tx_legacy(m_account.get_keys(), sd, multisig_nonces, ptx);
+      multisig_tx_builder = sign_multisig_partial_tx_legacy(
+        m_account.get_keys(),
+        this->get_multisig_signer_public_key(),
+        sd,
+        multisig_nonces,
+        ptx);
     }
 
     // Try to finalize the tx
@@ -8677,11 +8684,12 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
               this->get_tree_cache_ref(),
               this->get_curve_trees_ref(),
               *this->get_address_device(),
-              *this->get_view_incoming_key_device(),
+              this->get_view_incoming_key_device().get(),
               this->get_view_balance_secret_device().get(),
               key_images,
               saved_partial_sigs,
               ptx),
+              error::wallet_internal_error,
               "error: try_finalize_multisig_tx"
             );
           }
@@ -12091,6 +12099,11 @@ const wallet2::transfer_details &wallet2::get_transfer_details(size_t idx) const
   return m_transfers[idx];
 }
 //----------------------------------------------------------------------------------------------------
+const std::vector<wallet2::transfer_details> &wallet2::get_all_transfer_details() const
+{
+  return m_transfers;
+}
+//----------------------------------------------------------------------------------------------------
 std::vector<size_t> wallet2::select_available_unmixable_outputs()
 {
   // request all outputs with less instances than the min ring size
@@ -14613,7 +14626,7 @@ wallet2::multisig_nonces wallet2::get_multisig_composite_nonces(
       if (used_L.find(lr.m_L) != used_L.end())
         continue;
       used_L.insert(lr.m_L);
-      new_used_L.push(lr.m_L);
+      new_used_L.push_back(lr.m_L);
       rct::addKeys(nonces.m_L, nonces.m_L, lr.m_L);
       rct::addKeys(nonces.m_R, nonces.m_R, lr.m_R);
       rct::addKeys(nonces.m_U, nonces.m_U, lr.m_U);
@@ -14795,12 +14808,12 @@ void wallet2::update_multisig_rescan_info(const std::vector<std::vector<rct::key
   }
 
   crypto::key_image key_image;
-  get_multisig_key_image_from_opening_hint(
-    make_sal_opening_hint_from_transfer_details(td),
+  wallet::get_multisig_key_image_from_opening_hint(
+    wallet::make_sal_opening_hint_from_transfer_details(td),
     td.m_multisig_info,
     this->get_account().get_multisig_keys(),
     *this->get_address_device(),
-    *this->get_view_incoming_key_device(),
+    this->get_view_incoming_key_device().get(),
     this->get_view_balance_secret_device().get(),
     key_image);
 

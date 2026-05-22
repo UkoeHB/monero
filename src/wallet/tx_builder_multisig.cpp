@@ -30,35 +30,28 @@
 #include "tx_builder_multisig.h"
 
 //local headers
-#include "carrot_core/exceptions.h"
 #include "carrot_core/output_set_finalization.h"
-#include "carrot_core/scan.h"
 #include "carrot_impl/address_utils.h"
-#include "carrot_impl/format_utils.h"
-#include "carrot_impl/multi_tx_proposal_utils.h"
-#include "carrot_impl/tx_builder_inputs.h"
 #include "carrot_impl/tx_builder_outputs.h"
 #include "carrot_impl/tx_proposal.h"
 #include "common/apply_permutation.h"
-#include "common/perf_timer.h"
-#include "common/threadpool.h"
 #include "crypto/generators.h"
-#include "cryptonote_basic/cryptonote_format_utils.h"
-#include "cryptonote_config.h"
-#include "cryptonote_core/blockchain.h"
+#include "fcmp_pp/fcmp_pp_types_interop.h"
 #include "fcmp_pp/fcmp_pp_types.h"
-#include "fcmp_pp/proof_len.h"
 #include "fcmp_pp/prove.h"
-#include "fcmp_pp/tower_cycle.h"
 #include "misc_log_ex.h"
-#include "ringct/bulletproofs_plus.h"
-#include "ringct/rctSigs.h"
+#include "multisig/multisig.h"
+#include "multisig/multisig_sal.h"
+#include "multisig/multisig_tx_builder_ringct.h"
+#include "ringct/rctOps.h"
 #include "tx_builder.h"
+#include "wallet2_basic/wallet2_types.h"
 
 //third party headers
 
 //standard headers
 #include <algorithm>
+#include <variant>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.tx_builder_multisig"
@@ -103,20 +96,20 @@ static void prepare_legacy_multisig_input_signing_attempt(
     const carrot::OutputOpeningHintVariant &opening_hint,
     const std::unordered_set<crypto::public_key> &ignore_set,
     // Should only include 'active' signers, and `ignore_set` excludes active signers referenced here.
-    const std::vector<multisig_info> &multisig_infos,
+    const std::vector<wallet2_basic::multisig_info> &multisig_infos,
     const std::vector<crypto::secret_key> &local_multisig_keys,
     const size_t threshold,
     const carrot::address_device &addr_dev,
     const carrot::view_incoming_key_device *k_view_incoming_dev,
     const carrot::view_balance_secret_device *s_view_balance_dev,
-    std::unordered_set<crypto::public_key> &all_used_L_inout,
-    std::vector<crypto::public_key> &used_L_out,
+    std::unordered_set<rct::key> &all_used_L_inout,
+    std::vector<rct::key> &used_L_out,
     std::vector<crypto::secret_key> &local_alpha_out,
     rct::keyV alpha_G_out,
     rct::keyV alpha_H_out,
     rct::keyV alpha_U_out,
     crypto::key_image &key_image_out,
-    crypto::public_key &kU_out,
+    rct::key &kU_out,
     // Subaddress extension + sender extension
     crypto::secret_key &onetime_address_extension_g_out,
     crypto::secret_key &onetime_address_extension_t_out)
@@ -170,9 +163,9 @@ static void prepare_legacy_multisig_input_signing_attempt(
             multisig::generate_multisig_nonces(
                 onetime_address,
                 a,
-                (crypto::public_key&)alpha_G.emplace_back(),
-                (crypto::public_key&)alpha_H.emplace_back(),
-                (crypto::public_key&)alpha_U.emplace_back()
+                (crypto::public_key&)alpha_G_out.emplace_back(),
+                (crypto::public_key&)alpha_H_out.emplace_back(),
+                (crypto::public_key&)alpha_U_out.emplace_back()
             );
         }
 
@@ -203,7 +196,7 @@ static void prepare_legacy_multisig_input_signing_attempt(
 
         // Other signers' keys
         size_t n_signers_used = 1;
-        for (const &multisig_info : multisig_infos)
+        for (const auto &multisig_info : multisig_infos)
         {
             // Ignored signers
             if (ignore_set.find(multisig_info.m_signer) != ignore_set.end())
@@ -218,10 +211,10 @@ static void prepare_legacy_multisig_input_signing_attempt(
                     if (all_used_L_inout.find(lr.m_L) != all_used_L_inout.end())
                         continue;
                     all_used_L_inout.insert(lr.m_L);
-                    used_L_out.push(lr.m_L);
-                    rct::addKeys(alpha_G[n], alpha_G[n], lr.m_L);
-                    rct::addKeys(alpha_H[n], alpha_H[n], lr.m_R);
-                    rct::addKeys(alpha_U[n], alpha_U[n], lr.m_U);
+                    used_L_out.push_back(lr.m_L);
+                    rct::addKeys(alpha_G_out[n], alpha_G_out[n], lr.m_L);
+                    rct::addKeys(alpha_H_out[n], alpha_H_out[n], lr.m_R);
+                    rct::addKeys(alpha_U_out[n], alpha_U_out[n], lr.m_U);
                     break;
                 }
             }
@@ -241,7 +234,7 @@ static void prepare_legacy_multisig_input_signing_attempt(
         CHECK_AND_ASSERT_THROW_MES(n_signers_used >= threshold, "LR not found for enough participants");
 
         key_image_out = rct::rct2ki(ki);
-        kU_out = rct::rct2pk(kU);
+        kU_out = kU;
     }
 }
 //-------------------------------------------------------------------------------------------------------------------
@@ -266,12 +259,12 @@ static bool multisig_selfsends_are_owned(const carrot::CarrotTransactionProposal
 static bool get_multisig_nonce(
     const std::vector<rct::key> &used_L,
     std::vector<rct::key> *multisig_nonces_inout,
-    rct::key &nonce_out)
+    crypto::secret_key &nonce_out)
 {
     if (multisig_nonces_inout == nullptr)
         return false;
 
-    for (auto &a: multisig_nonces_inout)
+    for (auto &a : *multisig_nonces_inout)
     {
         if (a == rct::zero())
             continue;
@@ -281,7 +274,7 @@ static bool get_multisig_nonce(
         rct::scalarmultBase(L, a);
         if (std::find(used_L.cbegin(), used_L.cend(), L) != used_L.cend())
         {
-            nonce_out = a;
+            nonce_out = rct::rct2sk(a);
             memwipe(static_cast<rct::key *>(&a), sizeof(rct::key));  //CRITICAL: a nonce may only be used once!
             return true;
         }
@@ -293,6 +286,7 @@ static bool get_multisig_nonce(
 //-------------------------------------------------------------------------------------------------------------------
 static cryptonote::transaction finalize_multisig_tx(
     const carrot::CarrotTransactionProposalV1 &tx_proposal,
+    const std::vector<std::vector<crypto::secret_key>> &multisig_enote_rr,
     const fcmp_pp::curve_trees::TreeCacheV1 &tree_cache,
     const fcmp_pp::curve_trees::CurveTreesV1 &curve_trees,
     const carrot::address_device &addr_dev,
@@ -307,7 +301,7 @@ static cryptonote::transaction finalize_multisig_tx(
         "finalize multisig tx: num inputs != num key images");
     CHECK_AND_ASSERT_THROW_MES(num_inputs == saved_partial_sigs.size(),
         "finalize multisig tx: num inputs != num saved partial sigs");
-    CHECK_AND_ASSERT_THROW_MES(num_inputs == ptx_inout.multisig_enote_rr.size(),
+    CHECK_AND_ASSERT_THROW_MES(num_inputs == multisig_enote_rr.size(),
         "sign multisig partial tx: num input proposals != num rerandomization sets");
 
     std::vector<crypto::key_image> key_images_sorted;
@@ -320,12 +314,12 @@ static cryptonote::transaction finalize_multisig_tx(
     std::vector<fcmp_pp::OutputPair> output_pairs{};
     std::vector<carrot::RCTOutputEnoteProposal> output_enote_proposals{};
     carrot::encrypted_payment_id_t encrypted_payment_id{};
-    std::vector<fcmp_pp::FcmpRerandomizedOutputCompressed> _rerandomized_outputs{};
-    std::unordered_map<crypto::public_key, fcmp_pp::FcmpRerandomizedOutputCompressed> _rerandomized_outputs_by_ota{};
+    std::vector<FcmpRerandomizedOutputCompressed> _rerandomized_outputs{};
+    std::unordered_map<crypto::public_key, FcmpRerandomizedOutputCompressed> _rerandomized_outputs_by_ota{};
     prepare_for_fcmp_pp_proofs(
         tx_proposal,
-        carrot::get_all_main_address_spend_pubkeys_span(addr_dev, _main_address_spend_pubkeys),,
-        k_view_incoming_dev,
+        carrot::get_all_main_address_spend_pubkeys_span(addr_dev, _main_address_spend_pubkeys),
+        *k_view_incoming_dev,
         s_view_balance_dev,
         key_images_sorted,
         output_pairs,
@@ -336,29 +330,29 @@ static cryptonote::transaction finalize_multisig_tx(
     );
 
     // Recover rerandomized outputs
-    std::vector<fcmp_pp::FcmpRerandomizedOutputCompressed> rerandomized_outputs{};
+    std::vector<FcmpRerandomizedOutputCompressed> rerandomized_outputs{};
     for (size_t i = 0; i < num_inputs; ++i)
     {
         const carrot::InputProposalV1 &input_proposal = tx_proposal.input_proposals.at(i);
-        const auto &rr_vec = ptx_inout.multisig_enote_rr.at(i);
+        const auto &rr_vec = multisig_enote_rr.at(i);
         CHECK_AND_ASSERT_THROW_MES(rr_vec.size() == 4,
             "sign multisig partial tx: invalid rerandomization set (wrong size)");
 
         auto &rerandomized_output = rerandomized_outputs.emplace_back();
         rerandomized_output.input = fcmp_pp::calculate_fcmp_input_for_rerandomizations(
             onetime_address_ref(input_proposal),
-            amount_commitment_ref(input_proposal),
+            rct::rct2pt(amount_commitment_ref(input_proposal)),
             use_biased_hash_to_point(input_proposal),
-            rr_vec.r_o,
-            rr_vec.r_i,
-            rr_vec.r_r_i,
-            rr_vec.r_c
+            rr_vec[0],
+            rr_vec[1],
+            rr_vec[2],
+            rr_vec[3]
         );
 
-        memcpy(rerandomized_output.r_o, to_bytes(rr_vec.r_o), 32);
-        memcpy(rerandomized_output.r_i, to_bytes(rr_vec.r_i), 32);
-        memcpy(rerandomized_output.r_r_i, to_bytes(rr_vec.r_r_i), 32);
-        memcpy(rerandomized_output.r_c, to_bytes(rr_vec.r_c), 32);
+        memcpy(rerandomized_output.r_o, to_bytes(rr_vec[0]), 32);
+        memcpy(rerandomized_output.r_i, to_bytes(rr_vec[1]), 32);
+        memcpy(rerandomized_output.r_r_i, to_bytes(rr_vec[2]), 32);
+        memcpy(rerandomized_output.r_c, to_bytes(rr_vec[3]), 32);
     }
 
     // Finalize sal proofs
@@ -367,7 +361,9 @@ static cryptonote::transaction finalize_multisig_tx(
         multisig::finalize_sal_multisig_proof({saved_partial_sigs[i]}, sal_proofs.emplace_back());
 
     // Align everything with sorted key images
-    std::vector<fcmp_pp::FcmpPpSalProof> sorted_sal_proofs = std::move(sal_proofs);
+    std::vector<fcmp_pp::FcmpPpSalProof> sorted_sal_proofs{};
+    for (const auto &sal_proof : sal_proofs)
+        sorted_sal_proofs.emplace_back(fcmp_pp::sal_proof_to_bytes(sal_proof));
     tools::apply_permutation(key_image_order, rerandomized_outputs);
     tools::apply_permutation(key_image_order, output_pairs);
     tools::apply_permutation(key_image_order, sorted_sal_proofs);
@@ -388,7 +384,7 @@ static cryptonote::transaction finalize_multisig_tx(
 // keys are shared on `G` while `T` is a placeholder.
 void get_multisig_key_image_from_opening_hint(
     const carrot::OutputOpeningHintVariant &opening_hint,
-    const std::vector<multisig_info> &multisig_infos,
+    const std::vector<wallet2_basic::multisig_info> &multisig_infos,
     const std::vector<crypto::secret_key> &local_multisig_keys,
     const carrot::address_device &addr_dev,
     const carrot::view_incoming_key_device *k_view_incoming_dev,
@@ -447,7 +443,7 @@ void get_multisig_key_image_from_opening_hint(
     }
 
     // Other signers' keys
-    for (const &multisig_info : multisig_infos)
+    for (const auto& multisig_info : multisig_infos)
     {
         // Add ki and kU shares
         for (size_t i = 0; i < multisig_info.m_partial_key_images.size(); ++i)
@@ -465,7 +461,7 @@ void get_multisig_key_image_from_opening_hint(
 pending_tx tx_proposal_to_multisig_pending_tx(
     const carrot::CarrotTransactionProposalV1 &tx_proposal,
     const std::vector<std::unordered_set<crypto::public_key>> &ignore_sets,
-    const std::vector<const *std::vector<multisig_info>> &multisig_infos,
+    const std::vector<const std::vector<wallet2_basic::multisig_info>*> &multisig_infos,
     const size_t threshold,
     const std::vector<crypto::secret_key> &local_multisig_keys,
     const carrot::address_device &addr_dev,
@@ -498,11 +494,11 @@ pending_tx tx_proposal_to_multisig_pending_tx(
     std::vector<fcmp_pp::OutputPair> _output_pairs{};
     std::vector<carrot::RCTOutputEnoteProposal> _output_enote_proposals{};
     carrot::encrypted_payment_id_t _encrypted_payment_id{};
-    std::vector<fcmp_pp::FcmpRerandomizedOutputCompressed> rerandomized_outputs{};
-    std::unordered_map<crypto::public_key, fcmp_pp::FcmpRerandomizedOutputCompressed> _rerandomized_outputs_by_ota{};
+    std::vector<FcmpRerandomizedOutputCompressed> rerandomized_outputs{};
+    std::unordered_map<crypto::public_key, FcmpRerandomizedOutputCompressed> _rerandomized_outputs_by_ota{};
     prepare_for_fcmp_pp_proofs(
         tx_proposal,
-        carrot::get_all_main_address_spend_pubkeys_span(addr_dev, _main_address_spend_pubkeys),,
+        carrot::get_all_main_address_spend_pubkeys_span(addr_dev, _main_address_spend_pubkeys),
         k_view_incoming_dev,
         s_view_balance_dev,
         expected_key_images_sorted,
@@ -514,14 +510,14 @@ pending_tx tx_proposal_to_multisig_pending_tx(
     );
 
     std::vector<std::vector<crypto::secret_key>> multisig_enote_rr{};
-    for (const fcmp_pp::FcmpRerandomizedOutputCompressed &rr_enote : rerandomized_outputs)
+    for (const FcmpRerandomizedOutputCompressed &rr_enote : rerandomized_outputs)
     {
-        multisig_enote_rr.emplace_back{
+        multisig_enote_rr.emplace_back(std::vector<crypto::secret_key>{
             (const crypto::secret_key&)rr_enote.r_o,
             (const crypto::secret_key&)rr_enote.r_i,
             (const crypto::secret_key&)rr_enote.r_r_i,
             (const crypto::secret_key&)rr_enote.r_c,
-        };
+        });
     }
 
     // Local signing keys used
@@ -540,21 +536,21 @@ pending_tx tx_proposal_to_multisig_pending_tx(
     crypto::hash signable_message;
     carrot::make_signable_tx_hash_from_proposal_v1(tx_proposal,
         s_view_balance_dev,
-        k_view_incoming_dev,
+        &k_view_incoming_dev,
         expected_key_images_sorted,
         signable_message);
 
     // Signing attempts
     std::vector<multisig_sig> multisig_sigs{};
-    std::unordered_set<crypto::public_key> all_used_L{};
+    std::unordered_set<rct::key> all_used_L{};
 
     for (size_t s = 0; s < num_signing_attempts; ++s)
     {
         auto &partial_sigs = saved_partial_sigs_out.emplace_back();
 
         std::vector<crypto::key_image> attempt_key_images{};
-        std::vector<crypto::public_key> attempt_kU{};
-        std::vector<crypto::public_key> used_L{};
+        std::vector<rct::key> attempt_kU{};
+        std::vector<rct::key> used_L{};
         rct::keyM total_alpha_G{};
         rct::keyM total_alpha_H{};
         rct::keyM total_alpha_U{};
@@ -563,18 +559,20 @@ pending_tx tx_proposal_to_multisig_pending_tx(
 
         for (size_t i = 0; i < num_inputs; ++i)
         {
+            const auto &input_proposal = tx_proposal.input_proposals.at(i);
+
             // Prep
-            rct::keyV local_alpha{};
+            std::vector<crypto::secret_key> local_alpha{};
             rct::keyV alpha_G{};
             rct::keyV alpha_H{};
             rct::keyV alpha_U{};
 
             crypto::key_image key_image;
-            crypto::public_key kU;
+            rct::key kU;
             crypto::secret_key onetime_address_extension_g;
             crypto::secret_key onetime_address_extension_t;
             prepare_legacy_multisig_input_signing_attempt(
-                tx_proposal.input_proposals.at(i),
+                input_proposal,
                 ignore_sets.at(s),
                 *multisig_infos.at(i),
                 local_multisig_keys,
@@ -603,7 +601,7 @@ pending_tx tx_proposal_to_multisig_pending_tx(
             multisig::SalProofMultisigProposal proposal;
             multisig::make_sal_multisig_proposal(
                 rct::hash2rct(signable_message),
-                onetime_address,
+                rct::pk2rct(onetime_address_ref(input_proposal)),
                 kU,
                 key_image,
                 fcmp_pp::rerandomized_enote_from_raw(rerandomized_outputs.at(i)),
@@ -687,9 +685,9 @@ void sign_multisig_partial_tx(
     saved_partial_sigs_out.clear();
 
     // Checks
-    CHECK_AND_ASSERT_THROW_MES(ptx_inout.construction_data.holds_variant::<carrot::CarrotTransactionProposalV1>(),
+    CHECK_AND_ASSERT_THROW_MES(std::holds_alternative<carrot::CarrotTransactionProposalV1>(ptx_inout.construction_data),
         "sign multisig partial tx: pending_tx construction data is not CarrotTransactionProposalV1");
-    const carrot::CarrotTransactionProposalV1& tx_proposal = ptx_inout.construction_data.get();
+    const carrot::CarrotTransactionProposalV1& tx_proposal = std::get<carrot::CarrotTransactionProposalV1>(ptx_inout.construction_data);
 
     const size_t num_inputs = tx_proposal.input_proposals.size();
     CHECK_AND_ASSERT_THROW_MES(num_inputs == ptx_inout.multisig_enote_rr.size(),
@@ -706,7 +704,7 @@ void sign_multisig_partial_tx(
     std::sort(key_images_sorted.begin(), key_images_sorted.end(), std::greater{});
 
     // Recover rerandomized outputs (for inputs)
-    std::vector<fcmp_pp::FcmpRerandomizedOutputCompressed> rerandomized_outputs{};
+    std::vector<FcmpRerandomizedOutputCompressed> rerandomized_outputs{};
     for (size_t i = 0; i < num_inputs; ++i)
     {
         const carrot::InputProposalV1 &input_proposal = tx_proposal.input_proposals.at(i);
@@ -717,25 +715,25 @@ void sign_multisig_partial_tx(
         auto &rerandomized_output = rerandomized_outputs.emplace_back();
         rerandomized_output.input = fcmp_pp::calculate_fcmp_input_for_rerandomizations(
             onetime_address_ref(input_proposal),
-            amount_commitment_ref(input_proposal),
+            rct::rct2pt(amount_commitment_ref(input_proposal)),
             use_biased_hash_to_point(input_proposal),
-            rr_vec.r_o,
-            rr_vec.r_i,
-            rr_vec.r_r_i,
-            rr_vec.r_c
+            rr_vec[0],
+            rr_vec[1],
+            rr_vec[2],
+            rr_vec[3]
         );
 
-        memcpy(rerandomized_output.r_o, to_bytes(rr_vec.r_o), 32);
-        memcpy(rerandomized_output.r_i, to_bytes(rr_vec.r_i), 32);
-        memcpy(rerandomized_output.r_r_i, to_bytes(rr_vec.r_r_i), 32);
-        memcpy(rerandomized_output.r_c, to_bytes(rr_vec.r_c), 32);
+        memcpy(rerandomized_output.r_o, to_bytes(rr_vec[0]), 32);
+        memcpy(rerandomized_output.r_i, to_bytes(rr_vec[1]), 32);
+        memcpy(rerandomized_output.r_r_i, to_bytes(rr_vec[2]), 32);
+        memcpy(rerandomized_output.r_c, to_bytes(rr_vec[3]), 32);
     }
 
     // Message to sign
     crypto::hash signable_message;
     carrot::make_signable_tx_hash_from_proposal_v1(tx_proposal,
         s_view_balance_dev,
-        k_view_incoming_dev,
+        &k_view_incoming_dev,
         key_images_sorted,
         signable_message);
 
@@ -787,14 +785,10 @@ void sign_multisig_partial_tx(
             const carrot::InputProposalV1 &input_proposal = tx_proposal.input_proposals.at(i);
 
             // Prep
-            rct::keyV local_alpha(multisig::signing::kAlphaComponents);
+            std::vector<crypto::secret_key> local_alpha(multisig::signing::kAlphaComponents);
             rct::keyV alpha_G{};
             rct::keyV alpha_H{};
             rct::keyV alpha_U{};
-            auto wiper = epee::misc_utils::create_scope_leave_handler([&]{
-                for (auto& e: local_alpha)
-                    memwipe(e.data(), e.size() * sizeof(rct::key));
-            });
 
             // Note: this clears alphas pulled from `multisig_nonces_inout`
             for (size_t n = 0; n < multisig::signing::kAlphaComponents; ++n)
@@ -807,7 +801,7 @@ void sign_multisig_partial_tx(
             multisig::SalProofMultisigProposal proposal;
             multisig::make_sal_multisig_proposal(
                 rct::hash2rct(signable_message),
-                onetime_address_ref(input_proposal),
+                rct::pk2rct(onetime_address_ref(input_proposal)),
                 sig.total_kU.at(i),
                 key_images.at(i),
                 fcmp_pp::rerandomized_enote_from_raw(rerandomized_outputs.at(i)),
@@ -820,7 +814,7 @@ void sign_multisig_partial_tx(
             crypto::secret_key sender_extension_t;
             CHECK_AND_ASSERT_THROW_MES(carrot::try_scan_opening_hint_sender_extensions(input_proposal,
                     carrot::get_all_main_address_spend_pubkeys_span(addr_dev, _main_address_spend_pubkeys),
-                    k_view_incoming_dev,
+                    &k_view_incoming_dev,
                     s_view_balance_dev,
                     _sender_extension_g,
                     sender_extension_t),
@@ -866,6 +860,15 @@ bool try_finalize_multisig_tx(
     const std::vector<std::vector<multisig::SalProofMultisigPartial>> &saved_partial_sigs,
     pending_tx &ptx_inout)
 {
+    // Checks
+    size_t num_attempts = ptx_inout.multisig_sigs.size();
+    CHECK_AND_ASSERT_THROW_MES(num_attempts == saved_partial_sigs.size(),
+        "try vinalize multisig tx: num attempts != saved partial sigs size");
+
+    CHECK_AND_ASSERT_THROW_MES(std::holds_alternative<carrot::CarrotTransactionProposalV1>(ptx_inout.construction_data),
+        "sign multisig partial tx: pending_tx construction data is not CarrotTransactionProposalV1");
+    const carrot::CarrotTransactionProposalV1& tx_proposal = std::get<carrot::CarrotTransactionProposalV1>(ptx_inout.construction_data);
+
     const size_t n_inputs = tx_proposal.input_proposals.size();
     const size_t n_outputs = tx_proposal.normal_payment_proposals.size()
         + tx_proposal.selfsend_payment_proposals.size();
@@ -877,15 +880,6 @@ bool try_finalize_multisig_tx(
         << tx_proposal.selfsend_payment_proposals.size() << " self-send payment proposals, and a fee of "
         << tx_proposal.fee << " pXMR");
 
-    // Checks
-    size_t num_attempts = ptx_inout.multisig_sigs.size();
-    CHECK_AND_ASSERT_THROW_MES(num_attempts == saved_partial_sigs.size(),
-        "try vinalize multisig tx: num attempts != saved partial sigs size");
-
-    CHECK_AND_ASSERT_THROW_MES(ptx_inout.construction_data.holds_variant::<carrot::CarrotTransactionProposalV1>(),
-        "sign multisig partial tx: pending_tx construction data is not CarrotTransactionProposalV1");
-    const carrot::CarrotTransactionProposalV1& tx_proposal = ptx_inout.construction_data.get();
-
     for (size_t s = 0; s < num_attempts; ++s)
     {
         // Skip incomplete sigs
@@ -895,6 +889,7 @@ bool try_finalize_multisig_tx(
         try {
             ptx_inout.tx = finalize_multisig_tx(
                 tx_proposal,
+                ptx_inout.multisig_enote_rr,
                 tree_cache,
                 curve_trees,
                 addr_dev,
@@ -915,9 +910,10 @@ bool try_finalize_multisig_tx(
 //-------------------------------------------------------------------------------------------------------------------
 multisig::signing::tx_builder_ringct_t sign_multisig_partial_tx_legacy(
     const cryptonote::account_keys &account_keys,
-    const wallet::PreCarrotTransactionProposal &proposal,
+    const crypto::public_key &local_signer,
+    wallet::PreCarrotTransactionProposal &proposal,
     std::vector<std::vector<rct::key>*> &multisig_nonces_inout,
-    wallet::tools::pending_tx &ptx_inout)
+    pending_tx &ptx_inout)
 {
     // reconstruct the partially-signed transaction attempt to verify we are signing something that at least looks
     // like a transaction
@@ -972,8 +968,10 @@ multisig::signing::tx_builder_ringct_t sign_multisig_partial_tx_legacy(
             for (std::size_t i = 0; i < local_nonces_k.size(); ++i) {
                 for (std::size_t j = 0; j < multisig::signing::kAlphaComponents; ++j) {
                     // Note: this clears alphas pulled from `multisig_nonces_inout`
-                    if (!get_multisig_nonce(sig.used_L, multisig_nonces_inout.at(i), local_nonces_k[i][j]))
+                    crypto::secret_key temp;
+                    if (!get_multisig_nonce(sig.used_L, multisig_nonces_inout.at(i), temp))
                         THROW_WALLET_EXCEPTION(tools::error::multisig_export_needed);
+                    memcpy(local_nonces_k[i][j].bytes, to_bytes(temp), sizeof(rct::key));
                 }
             }
 
@@ -981,7 +979,7 @@ multisig::signing::tx_builder_ringct_t sign_multisig_partial_tx_legacy(
             for (const auto &multisig_skey: account_keys.m_multisig_keys)
             {
                 crypto::public_key multisig_pkey;
-                CHECK_AND_ASSERT_THROW_MES(crypto::secret_key_to_public_key(msk, multisig_pkey),
+                CHECK_AND_ASSERT_THROW_MES(crypto::secret_key_to_public_key(multisig_skey, multisig_pkey),
                     "Failed to derive public key");
 
                 if (sig.signing_keys.find(multisig_pkey) == sig.signing_keys.end())

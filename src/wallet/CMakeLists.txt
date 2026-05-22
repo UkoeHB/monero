@@ -41,6 +41,7 @@ set(wallet_sources
   misc_wallet_utils.cpp
   scanning_tools.cpp
   tx_builder.cpp
+  tx_builder_multisig.cpp
 )
 
 monero_find_all_headers(wallet_private_headers "${CMAKE_CURRENT_SOURCE_DIR}")

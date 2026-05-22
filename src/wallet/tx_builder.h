@@ -325,6 +325,30 @@ cryptonote::transaction finalize_fcmps_and_range_proofs(
     const fcmp_pp::curve_trees::TreeCacheV1 &tree_cache,
     const fcmp_pp::curve_trees::CurveTreesV1 &curve_trees);
 /**
+ * brief: prepare_for_fcmp_pp_proofs - prepare inputs and outputs for finalizing a tx's proofs
+ * param: tx_proposal -
+ * param: main_address_spend_pubkeys - all K_s
+ * param: k_view_incoming_dev -
+ * param: s_view_balance_dev -
+ * param: sorted_input_key_images -
+ * outparam: output_pairs_out -
+ * outparam: output_enote_proposals_out -
+ * outparam: encrypted_payment_id_out -
+ * outparam: rerandomized_outputs_out -
+ * outparam: rerandomized_outputs_by_ota_out -
+ */
+void prepare_for_fcmp_pp_proofs(
+    const carrot::CarrotTransactionProposalV1 &tx_proposal,
+    const epee::span<const crypto::public_key> main_address_spend_pubkeys,
+    const carrot::view_incoming_key_device &k_view_incoming_dev,
+    const carrot::view_balance_secret_device *s_view_balance_dev,
+    const std::vector<crypto::key_image> &sorted_input_key_images,
+    std::vector<fcmp_pp::OutputPair> &output_pairs_out,
+    std::vector<carrot::RCTOutputEnoteProposal> &output_enote_proposals_out,
+    carrot::encrypted_payment_id_t &encrypted_payment_id_out,
+    std::vector<FcmpRerandomizedOutputCompressed> &rerandomized_outputs_out,
+    std::unordered_map<crypto::public_key, FcmpRerandomizedOutputCompressed> &rerandomized_outputs_by_ota_out);
+/**
  * brief: finalize FCMPs, BP+ range proofs for outputs amounts, and SA/L proofs for Carrot/FCMP++ txs
  * param: tx_proposal -
  * param: tree_cache - FCMP tree cache to draw enote paths from
