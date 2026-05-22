@@ -246,6 +246,21 @@ static void prepare_legacy_multisig_input_signing_attempt(
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
+static bool multisig_selfsends_are_owned(const carrot::CarrotTransactionProposalV1 &tx_proposal,
+    const carrot::address_device &addr_dev)
+{
+    for (const auto &selfsend : tx_proposal.selfsend_payment_proposals)
+    {
+        crypto::public_key nominal_address_spend_pubkey;
+        addr_dev.get_address_spend_pubkey(selfsend.subaddr_index, nominal_address_spend_pubkey);
+
+        if (nominal_address_spend_pubkey != selfsend.proposal.destination_address_spend_pubkey)
+            return false;
+    }
+    return true;
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 // Selects one non-zero value `a` from `multisig_nonces_inout` such that `!used_L.contains(a G)`.
 // Sets `a` in `multisig_nonces_inout` to zero if found.
 static bool get_multisig_nonce(
@@ -469,6 +484,9 @@ pending_tx tx_proposal_to_multisig_pending_tx(
     CHECK_AND_ASSERT_THROW_MES(num_inputs == multisig_infos.size(),
         "tx proposal to multisig pending tx: invalid number of multisig infos");
 
+    CHECK_AND_ASSERT_THROW_MES(multisig_selfsends_are_owned(tx_proposal, addr_dev),
+        "tx proposal to multisig pending tx: failed checking selfsend is owned by this multisig account");
+
     std::vector<crypto::key_image> expected_key_images_sorted = expected_key_images;
     std::sort(expected_key_images_sorted.begin(), expected_key_images_sorted.end(), std::greater{});
 
@@ -673,7 +691,7 @@ void sign_multisig_partial_tx(
         "sign multisig partial tx: pending_tx construction data is not CarrotTransactionProposalV1");
     const carrot::CarrotTransactionProposalV1& tx_proposal = ptx_inout.construction_data.get();
 
-    const size_t num_inputs = tx_proposal.input_proposals.size()
+    const size_t num_inputs = tx_proposal.input_proposals.size();
     CHECK_AND_ASSERT_THROW_MES(num_inputs == ptx_inout.multisig_enote_rr.size(),
         "sign multisig partial tx: num input proposals != num rerandomization sets");
     CHECK_AND_ASSERT_THROW_MES(num_inputs == key_images.size(),
@@ -681,10 +699,13 @@ void sign_multisig_partial_tx(
     CHECK_AND_ASSERT_THROW_MES(num_inputs == multisig_nonces_inout.size(),
         "sign multisig partial tx: num input proposals != num multisig nonce sets");
 
+    CHECK_AND_ASSERT_THROW_MES(multisig_selfsends_are_owned(tx_proposal, addr_dev),
+        "sign multisig partial tx: failed checking selfsend is owned by this multisig account");
+
     std::vector<crypto::key_image> key_images_sorted = key_images;
     std::sort(key_images_sorted.begin(), key_images_sorted.end(), std::greater{});
 
-    // Recover rerandomized outputs
+    // Recover rerandomized outputs (for inputs)
     std::vector<fcmp_pp::FcmpRerandomizedOutputCompressed> rerandomized_outputs{};
     for (size_t i = 0; i < num_inputs; ++i)
     {
