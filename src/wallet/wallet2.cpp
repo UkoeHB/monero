@@ -8599,6 +8599,7 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
 
       size_t num_inputs = proposal->input_proposals.size();
       std::vector<std::vector<rct::key>*> multisig_nonces(num_inputs, nullptr);
+      key_images.reserve(num_inputs);
 
       for (size_t i = 0; i < num_inputs; ++i) {
         const auto &input_proposal = proposal->input_proposals[i];
