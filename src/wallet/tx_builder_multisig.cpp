@@ -143,7 +143,7 @@ static void prepare_legacy_multisig_input_signing_attempt(
     crypto::public_key _main_address_spend_pubkeys[2];
     crypto::secret_key sender_extension_g;
     crypto::secret_key sender_extension_t;
-    CHECK_AND_ASSERT_THROW_MES(try_scan_opening_hint_sender_extensions(opening_hint,
+    CHECK_AND_ASSERT_THROW_MES(carrot::try_scan_opening_hint_sender_extensions(opening_hint,
             carrot::get_all_main_address_spend_pubkeys_span(addr_dev, _main_address_spend_pubkeys),
             k_view_incoming_dev,
             s_view_balance_dev,
@@ -396,7 +396,7 @@ void get_multisig_key_image_from_opening_hint(
     crypto::public_key _main_address_spend_pubkeys[2];
     crypto::secret_key sender_extension_g;
     crypto::secret_key _sender_extension_t;
-    CHECK_AND_ASSERT_THROW_MES(try_scan_opening_hint_sender_extensions(opening_hint,
+    CHECK_AND_ASSERT_THROW_MES(carrot::try_scan_opening_hint_sender_extensions(opening_hint,
             carrot::get_all_main_address_spend_pubkeys_span(addr_dev, _main_address_spend_pubkeys),
             k_view_incoming_dev,
             s_view_balance_dev,
@@ -793,9 +793,21 @@ void sign_multisig_partial_tx(
                 proposal
             );
 
+            // Get k^t_o
+            crypto::public_key _main_address_spend_pubkeys[2];
+            crypto::secret_key _sender_extension_g;
+            crypto::secret_key sender_extension_t;
+            CHECK_AND_ASSERT_THROW_MES(carrot::try_scan_opening_hint_sender_extensions(input_proposal,
+                    carrot::get_all_main_address_spend_pubkeys_span(addr_dev, _main_address_spend_pubkeys),
+                    k_view_incoming_dev,
+                    s_view_balance_dev,
+                    _sender_extension_g,
+                    sender_extension_t),
+                "sign multisig partial tx:: failed computing sender extensions");
+
             // Partial signature
             crypto::secret_key x = aggregate_local_k;
-            crypto::secret_key y = crypto::null_skey;
+            crypto::secret_key y = sender_extension_t;
 
             multisig::SalProofMultisigPartial partial_sig;
             multisig::make_sal_multisig_partial_sig(
@@ -810,6 +822,7 @@ void sign_multisig_partial_tx(
                 partial_sig
             );
 
+            // Include existing partial signatures in the returned partial_sig for simplicity when finalizing.
             sc_add(to_bytes(partial_sig.partial_proof.s_z), sig.c_0[i].bytes, to_bytes(partial_sig.partial_proof.s_z));
             sc_add(to_bytes(partial_sig.partial_proof.s_alpha), sig.s[i].bytes, to_bytes(partial_sig.partial_proof.s_alpha));
             sig.c_0[i] = (const rct::key&)partial_sig.partial_proof.s_z;
@@ -828,7 +841,7 @@ bool try_finalize_multisig_tx(
     const carrot::view_incoming_key_device *k_view_incoming_dev,
     const carrot::view_balance_secret_device *s_view_balance_dev,
     const std::vector<crypto::key_image> &key_images,
-    // One for each signing attempt
+    // One set of partial sigs per input for each signing attempt
     const std::vector<std::vector<multisig::SalProofMultisigPartial>> &saved_partial_sigs,
     pending_tx &ptx_inout)
 {

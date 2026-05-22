@@ -8580,6 +8580,7 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
     std::vector<std::vector<multisig::SalProofMultisigPartial>> saved_partial_sigs{};
     multisig::signing::tx_builder_ringct_t multisig_tx_builder;
 
+    // Add local partial signatures
     if (use_fork_rules(HF_VERSION_CARROT))
     {
       const carrot::CarrotTransactionProposalV1 *proposal = std::get_if<carrot::CarrotTransactionProposalV1>(
@@ -8639,7 +8640,9 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
         ", signed by " << exported_txs.m_signers.size() << "/" << m_multisig_threshold);
 
       // Pull multisig nonces from the selected transfers.
+      size_t num_inputs = sd.sources.size();
       std::vector<std::vector<rct::key>*> multisig_nonces(num_inputs, nullptr);
+
       for (size_t i = 0; i < num_inputs; ++i)
       {
         size_t idx = sd.selected_transfers[i];
@@ -8655,6 +8658,7 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
       multisig_tx_builder = sign_multisig_partial_tx_legacy(m_account.get_keys(), sd, multisig_nonces, ptx);
     }
 
+    // Try to finalize the tx
     // if there are signatures from enough signers (assuming the local signer signed 1+ tx attempts), find the tx
     //       attempt with a full set of signatures so this tx can be finalized
     const bool is_last = exported_txs.m_signers.size() + 1 >= m_multisig_threshold;
