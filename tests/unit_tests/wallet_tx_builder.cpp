@@ -43,7 +43,7 @@
 #include "wallet/tx_builder.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "unit_tests.wallet_scanning"
+#define MONERO_DEFAULT_LOG_CATEGORY "unit_tests.wallet_tx_builder"
 
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------

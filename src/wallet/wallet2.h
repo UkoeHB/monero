@@ -1713,6 +1713,10 @@ namespace tools
   namespace detail
   {
     //----------------------------------------------------------------------------------------------------
+    tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pending_tx(
+      const carrot::CarrotTransactionProposalV1 &tx_proposal,
+      const tools::wallet2 &w);
+    //----------------------------------------------------------------------------------------------------
     inline void digit_split_strategy(const std::vector<cryptonote::tx_destination_entry>& dsts,
       const cryptonote::tx_destination_entry& change_dst, uint64_t dust_threshold,
       std::vector<cryptonote::tx_destination_entry>& splitted_dsts, std::vector<cryptonote::tx_destination_entry> &dust_dsts)

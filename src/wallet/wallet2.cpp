@@ -939,10 +939,12 @@ static tools::wallet::pending_tx finalize_all_proofs_from_transfer_details_as_pe
     *w.get_spend_device());
 }
 
+namespace detail
+{
 // Constructs a `pending_tx` for multisig signing with partially-signed SAL proofs.
 // There will be no membership proofs unless the multisig threshold is `1` (in which case
 // the tx will be fully signed and ready to submit).
-static tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pending_tx(
+tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pending_tx(
     const carrot::CarrotTransactionProposalV1 &tx_proposal,
     const tools::wallet2 &w)
 {
@@ -1010,6 +1012,7 @@ static tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pe
 
   return ptx;
 }
+} //namespace detail
 
 uint64_t get_outgoing_amount(const cryptonote::transaction &tx, const uint64_t amount_spent)
 {
@@ -1029,7 +1032,7 @@ static std::vector<tools::wallet::pending_tx> carrot_tx_proposals_to_pending_txs
   for (const carrot::CarrotTransactionProposalV1 &tx_proposal : tx_proposals)
   {
     if (w.get_multisig_status().multisig_is_active)
-      ptx_vector.push_back(::transfer_details_and_tx_proposal_to_multisig_pending_tx(tx_proposal, w));
+      ptx_vector.push_back(detail::transfer_details_and_tx_proposal_to_multisig_pending_tx(tx_proposal, w));
     else if (w.watch_only())
       ptx_vector.push_back(make_pending_carrot_tx(tx_proposal, /*sorted_input_key_images=*/{}, k_view_dev));
     else
@@ -8477,18 +8480,29 @@ bool wallet2::parse_multisig_tx_from_str(std::string multisig_tx_st, multisig_tx
   // sanity checks
   for (const auto &ptx: exported_txs.m_ptx)
   {
-    const auto *pre_carrot_ctx_data = std::get_if<wallet::PreCarrotTransactionProposal>(&ptx.construction_data);
-    if (nullptr == pre_carrot_ctx_data)
-      continue;
-    CHECK_AND_ASSERT_MES(pre_carrot_ctx_data->selected_transfers.size() == ptx.tx.vin.size(), false, "Mismatched cd selected_transfers/vin sizes");
-    for (size_t idx: pre_carrot_ctx_data->selected_transfers)
-      CHECK_AND_ASSERT_MES(idx < m_transfers.size(), false, "Transfer index out of range");
-    CHECK_AND_ASSERT_MES(pre_carrot_ctx_data->selected_transfers.size() == ptx.tx.vin.size(), false, "Mismatched cd selected_transfers/vin sizes");
-    for (size_t idx: pre_carrot_ctx_data->selected_transfers)
-      CHECK_AND_ASSERT_MES(idx < m_transfers.size(), false, "Transfer index out of range");
-    CHECK_AND_ASSERT_MES(pre_carrot_ctx_data->sources.size() == ptx.tx.vin.size(), false, "Mismatched sources/vin sizes");
     CHECK_AND_ASSERT_MES(!ptx.tx.vin.empty(), false, "Multisig tx has no inputs");
-    CHECK_AND_ASSERT_MES(!pre_carrot_ctx_data->sources.empty(), false, "Multisig tx has no sources");
+
+    if (use_fork_rules_offline(HF_VERSION_CARROT))
+    {
+      const auto *tx_proposal = std::get_if<carrot::CarrotTransactionProposalV1>(&ptx.construction_data);
+      if (nullptr == tx_proposal)
+        continue;
+      CHECK_AND_ASSERT_MES(tx_proposal->input_proposals.size() == ptx.tx.vin.size(), false, "Mismatched input proposal/vin sizes");
+    }
+    else
+    {
+      const auto *pre_carrot_ctx_data = std::get_if<wallet::PreCarrotTransactionProposal>(&ptx.construction_data);
+      if (nullptr == pre_carrot_ctx_data)
+        continue;
+      CHECK_AND_ASSERT_MES(pre_carrot_ctx_data->selected_transfers.size() == ptx.tx.vin.size(), false, "Mismatched cd selected_transfers/vin sizes");
+      for (size_t idx: pre_carrot_ctx_data->selected_transfers)
+        CHECK_AND_ASSERT_MES(idx < m_transfers.size(), false, "Transfer index out of range");
+      CHECK_AND_ASSERT_MES(pre_carrot_ctx_data->selected_transfers.size() == ptx.tx.vin.size(), false, "Mismatched cd selected_transfers/vin sizes");
+      for (size_t idx: pre_carrot_ctx_data->selected_transfers)
+        CHECK_AND_ASSERT_MES(idx < m_transfers.size(), false, "Transfer index out of range");
+      CHECK_AND_ASSERT_MES(pre_carrot_ctx_data->sources.size() == ptx.tx.vin.size(), false, "Mismatched sources/vin sizes");
+      CHECK_AND_ASSERT_MES(!pre_carrot_ctx_data->sources.empty(), false, "Multisig tx has no sources");
+    }
   }
 
   return true;
