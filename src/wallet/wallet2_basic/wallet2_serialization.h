@@ -46,24 +46,25 @@ BEGIN_SERIALIZE_OBJECT_FN(hashchain)
     FIELD_F(m_blockchain)
 END_SERIALIZE()
 
-BEGIN_SERIALIZE_OBJECT_FN(multisig_info::LR)
-    //TODO: optional version
+BEGIN_SERIALIZE_OBJECT_FN(multisig_info::LR, bool versioned)
+    OPTIONAL_VERSION_FIELD(1, versioned)
     FIELD_F(m_L)
     FIELD_F(m_R)
-    //TODO: v1
-    FIELD_F(m_U)
+    if (version >= 1)
+        FIELD_F(m_U)
 END_SERIALIZE()
 
-BEGIN_SERIALIZE_OBJECT_FN(multisig_info)
-    //TODO: optional version
+BEGIN_SERIALIZE_OBJECT_FN(multisig_info, bool versioned)
+    OPTIONAL_VERSION_FIELD(1, versioned)
     FIELD_F(m_signer)
     FIELD_F(m_LR)
     FIELD_F(m_partial_key_images)
-    //TODO: v1
-    FIELD_F(m_partial_kU)
+    if (version >= 1)
+        FIELD_F(m_partial_kU)
 END_SERIALIZE()
 
-BEGIN_SERIALIZE_OBJECT_FN(transfer_details)
+BEGIN_SERIALIZE_OBJECT_FN(transfer_details, bool versioned)
+    OPTIONAL_VERSION_FIELD(1, versioned)
     FIELD_F(m_block_height)
     FIELD_F(m_tx)
     FIELD_F(m_txid)
@@ -81,8 +82,13 @@ BEGIN_SERIALIZE_OBJECT_FN(transfer_details)
     FIELD_F(m_pk_index)
     FIELD_F(m_subaddr_index)
     FIELD_F(m_key_image_partial)
-    FIELD_F(m_multisig_k)
-    FIELD_F(m_multisig_info)
+    FIELD_F_FN(m_multisig_k, version >= 1)
+    FIELD_F_FN(m_multisig_info, version >= 1)
+    if (version < 1)
+    {
+        v.m_multisig_k.clear();
+        v.m_multisig_info.clear();
+    }
     FIELD_F(m_uses)
 END_SERIALIZE()
 

@@ -59,6 +59,8 @@ void serialize(Archive &a, wallet2_basic::multisig_info &x, const unsigned int v
     a & x.m_signer;
     a & x.m_LR;
     a & x.m_partial_key_images;
+    if (ver < 2) { return; }
+    a & x.m_partial_kU;
 }
 
 template <class Archive>

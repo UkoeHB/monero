@@ -261,7 +261,7 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
 
     // 12.
     LOG_PRINT_L2("Serializing pending tx");
-    const cryptonote::blobdata alicebob_tx_blob = cryptonote::tx_to_blob(tx);
+    const cryptonote::blobdata to_bob_tx_blob = cryptonote::tx_to_blob(tx);
 
     // 13.
     LOG_PRINT_L2("Deserializing pending tx");

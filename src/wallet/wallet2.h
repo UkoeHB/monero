@@ -923,9 +923,9 @@ private:
 
     BEGIN_SERIALIZE_OBJECT()
       MAGIC_FIELD("monero wallet cache")
-      VERSION_FIELD(3)
+      VERSION_FIELD(4)
       FIELD(m_blockchain)
-      FIELD(m_transfers)
+      FIELD_FN(m_transfers, version >= 4)
       FIELD(m_account_public_address)
       FIELD(m_key_images)
       FIELD(m_unconfirmed_txs)

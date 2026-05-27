@@ -249,6 +249,50 @@ inline auto do_serialize(Archive &ar, T &v, Args&&... args)
  */
 #define FIELD_F(f) FIELD_N(#f, v.f)
 
+/*! \macro FIELD_FN(f)
+ *
+ * \brief tags the field with the variable name and then serializes it (for use in a free function)
+ * 
+ * Sends variadic arguments to the serialized variable's serialization function (see BEGIN_SERIALIZE_OBJECT_FN).
+ */
+#if VA_OPT_SUPPORTED
+  #define FIELD_FN(f, ...)      \
+    do {              \
+      ar.tag(#f);            \
+      bool r = do_serialize(ar, f __VA_OPT__(,) __VA_ARGS__); \
+      if (!r || !ar.good()) return false;     \
+    } while(0);
+#else
+  #define FIELD_FN(f, ...)      \
+    do {              \
+      ar.tag(#f);            \
+      bool r = do_serialize(ar, f, ## __VA_ARGS__); \
+      if (!r || !ar.good()) return false;     \
+    } while(0);
+#endif
+
+/*! \macro FIELD_F_FN(f)
+ *
+ * \brief tags the field with the variable name and then serializes it (for use in a free function)
+ * 
+ * Sends variadic arguments to the serialized variable's serialization function (see BEGIN_SERIALIZE_OBJECT_FN).
+ */
+#if VA_OPT_SUPPORTED
+  #define FIELD_F_FN(f, ...)      \
+    do {              \
+      ar.tag(#f);            \
+      bool r = do_serialize(ar, v.f __VA_OPT__(,) __VA_ARGS__); \
+      if (!r || !ar.good()) return false;     \
+    } while(0);
+#else
+  #define FIELD_F_FN(f, ...)      \
+    do {              \
+      ar.tag(#f);            \
+      bool r = do_serialize(ar, v.f, ## __VA_ARGS__); \
+      if (!r || !ar.good()) return false;     \
+    } while(0);
+#endif
+
 /*! \macro FIELDS(f)
  *
  * \brief does not add a tag to the serialized value
@@ -307,6 +351,20 @@ inline auto do_serialize(Archive &ar, T &v, Args&&... args)
     if (!ar.good()) return false;		\
   } while(0);
 
+/*! \macro OPTIONAL_VERSION_FIELD(v, versioned)
+ */
+#define OPTIONAL_VERSION_FIELD(v, versioned)      \
+  uint32_t version = v;       \
+  if (versioned)                         \
+  {                         \
+    do {            \
+      ar.tag("version");        \
+      ar.serialize_varint(version);   \
+      if (!ar.good()) return false;   \
+    } while(0);                         \
+  }                         \
+  else                                  \
+    version = 0;
 
 namespace serialization {
   /*! \namespace detail
