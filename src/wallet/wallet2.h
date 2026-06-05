@@ -765,6 +765,8 @@ private:
     bool sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto::hash> &txids);
     bool sign_multisig_tx_to_file(multisig_tx_set &exported_txs, const std::string &filename, std::vector<crypto::hash> &txids);
     std::vector<pending_tx> create_unmixable_sweep_transactions();
+    std::deque<crypto::public_key> multisig_available_signers() const;
+    std::vector<std::unordered_set<crypto::public_key>> multisig_attempt_ignore_sets() const;
     void discard_unmixable_outputs();
     bool check_connection(uint32_t *version = NULL, bool *ssl = NULL, uint32_t timeout = 200000, bool *wallet_is_outdated = NULL, bool *daemon_is_outdated = NULL);
     bool check_version(uint32_t *version, bool *wallet_is_outdated, bool *daemon_is_outdated);
@@ -1503,8 +1505,6 @@ private:
     std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const;
     multisig_nonces get_multisig_composite_nonces(size_t n,  const std::unordered_set<crypto::public_key> &ignore_set, std::unordered_set<rct::key> &used_L, std::vector<rct::key> &new_used_L, crypto::secret_key &k_out) const;
     multisig_nonces get_multisig_nonces(size_t n, const rct::key &k) const;
-    std::deque<crypto::public_key> multisig_available_signers() const;
-    std::vector<std::unordered_set<crypto::public_key>> multisig_attempt_ignore_sets() const;
     void update_multisig_rescan_info(const std::vector<std::vector<rct::key>> &multisig_k, const std::vector<std::vector<tools::wallet2::multisig_info>> &info, size_t n);
     bool add_rings(const crypto::chacha_key &key, const cryptonote::transaction_prefix &tx);
     bool add_rings(const cryptonote::transaction_prefix &tx);
