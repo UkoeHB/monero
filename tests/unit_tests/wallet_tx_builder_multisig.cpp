@@ -74,7 +74,7 @@ static void make_wallets(const unsigned int M, const unsigned int N, std::vector
     for (size_t i = 0; i < N; ++i)
     {
         wallets[i].init("", boost::none, "", 0, true, epee::net_utils::ssl_support_t::e_ssl_support_disabled);
-        wallets[i].set_subaddress_lookahead(1, 1);
+        wallets[i].set_offline(true);
         wallets[i].generate("", "");
 
         wallets[i].decrypt_keys("");
