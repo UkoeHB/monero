@@ -49,16 +49,16 @@ namespace serialization
       return std::is_integral<T>::value && std::is_unsigned<T>::value && sizeof(T) > 1;
     }
 
-    template <typename Archive, class T>
+    template <typename Archive, class T, class... Args>
     typename std::enable_if<!use_container_varint<T>(), bool>::type
-    serialize_container_element(Archive& ar, T& e)
+    serialize_container_element(Archive& ar, T& e, Args&&... args)
     {
-      return do_serialize(ar, e);
+      return do_serialize(ar, e, std::forward<Args>(args)...);
     }
 
-    template<typename Archive, typename T>
+    template<typename Archive, typename T, class... Args>
     typename std::enable_if<use_container_varint<T>(), bool>::type
-    serialize_container_element(Archive& ar, T& e)
+    serialize_container_element(Archive& ar, T& e, Args&&... _args)
     {
       static constexpr const bool previously_varint = std::is_same<uint64_t, T>() || std::is_same<uint32_t, T>();
 
@@ -112,8 +112,8 @@ namespace serialization
   }
 }
 
-template <template <bool> class Archive, typename C>
-bool do_serialize_container(Archive<false> &ar, C &v)
+template <template <bool> class Archive, typename C, class... Args>
+bool do_serialize_container(Archive<false> &ar, C &v, Args&&... args)
 {
   size_t cnt;
   ar.begin_array(cnt);
@@ -133,7 +133,7 @@ bool do_serialize_container(Archive<false> &ar, C &v)
     if (i > 0)
       ar.delimit_array();
     typename ::serialization::detail::serializable_value_type<C>::type e;
-    if (!::serialization::detail::serialize_container_element(ar, e))
+    if (!::serialization::detail::serialize_container_element(ar, e, args...))
       return false;
     ::serialization::detail::do_add(v, std::move(e));
     if (!ar.good())
@@ -143,8 +143,8 @@ bool do_serialize_container(Archive<false> &ar, C &v)
   return true;
 }
 
-template <template <bool> class Archive, typename C>
-bool do_serialize_container(Archive<true> &ar, C &v)
+template <template <bool> class Archive, typename C, class... Args>
+bool do_serialize_container(Archive<true> &ar, C &v, Args&&... args)
 {
   size_t cnt = v.size();
   ar.begin_array(cnt);
@@ -156,7 +156,7 @@ bool do_serialize_container(Archive<true> &ar, C &v)
       ar.delimit_array();
     using serializable_value_type = typename ::serialization::detail::serializable_value_type<C>::type;
     auto &i_ref = const_cast<serializable_value_type&>(reinterpret_cast<const serializable_value_type&>(*i));
-    if(!::serialization::detail::serialize_container_element(ar, i_ref))
+    if(!::serialization::detail::serialize_container_element(ar, i_ref, args...))
       return false;
     if (!ar.good())
       return false;

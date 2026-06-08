@@ -14796,7 +14796,7 @@ cryptonote::blobdata wallet2::export_multisig()
 
   std::stringstream oss;
   binary_archive<true> ar(oss);
-  CHECK_AND_ASSERT_THROW_MES(::serialization::serialize(ar, info), "Failed to serialize multisig data");
+  CHECK_AND_ASSERT_THROW_MES(::serialization::serialize(ar, info, true), "Failed to serialize multisig data");
 
   const cryptonote::account_public_address &keys = get_account().get_keys().m_account_address;
   std::string header;
@@ -14885,7 +14885,7 @@ size_t wallet2::import_multisig(std::vector<cryptonote::blobdata> blobs, bool re
     try
     {
       binary_archive<false> ar{epee::strspan<std::uint8_t>(body)};
-      if (::serialization::serialize(ar, i))
+      if (::serialization::serialize(ar, i, true))
         if (::serialization::check_stream_state(ar))
           loaded = true;
     }

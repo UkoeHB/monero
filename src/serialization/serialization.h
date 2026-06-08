@@ -430,10 +430,10 @@ namespace serialization {
    *
    * \brief serializes \a v into \a ar
    */
-  template <class Archive, class T>
-  inline bool serialize(Archive &ar, T &v)
+  template <class Archive, class T, class... Args>
+  inline bool serialize(Archive &ar, T &v, Args&&... args)
   {
-    bool r = do_serialize(ar, v);
+    bool r = do_serialize(ar, v, std::forward<Args>(args)...);
     return r && check_stream_state(ar, false);
   }
 

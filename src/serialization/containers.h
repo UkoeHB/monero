@@ -55,9 +55,9 @@ namespace serialization
 
 #include "container.h"
 
-template <class Archive, class Container>
+template <class Archive, class Container, class... Args>
 std::enable_if_t<::serialization::is_container<Container>::value, bool>
-do_serialize(Archive &ar, Container &c)
+do_serialize(Archive &ar, Container &c, Args&&... args)
 {
-    return ::do_serialize_container(ar, c);
+    return ::do_serialize_container(ar, c, std::forward<Args>(args)...);
 }

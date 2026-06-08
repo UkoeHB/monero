@@ -29,6 +29,8 @@
 
 #pragma once
 
+#include "multisig_clsag_context.h"
+
 #include "ringct/rctTypes.h"
 
 #include <set>
@@ -46,8 +48,6 @@ struct account_keys;
 namespace multisig {
 
 namespace signing {
-
-class CLSAG_context_t;
 
 // number of parallel signing nonces to use per signer (2 nonces as in musig2 and FROST)
 constexpr std::size_t kAlphaComponents = 2;
