@@ -48,23 +48,6 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
-static tools::wallet2 make_wallet()
-{
-    try
-    {
-        tools::wallet2 wallet(cryptonote::MAINNET, /*kdf_rounds=*/1, /*unattended=*/true);
-        wallet.set_subaddress_lookahead(1, 1);
-        wallet.generate("", "");
-        return wallet;
-    }
-    catch (const std::exception &e)
-    {
-        MFATAL("Error creating test wallet: " << e.what());
-        ASSERT_TRUE(0);
-    }
-}
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
 static std::vector<std::string> exchange_round(std::vector<tools::wallet2>& wallets, const std::vector<std::string>& infos)
 {
     std::vector<std::string> new_infos;
@@ -81,8 +64,7 @@ static void make_wallets(const unsigned int M, const unsigned int N, std::vector
 {
     ASSERT_TRUE(N > 1);
     ASSERT_TRUE(M <= N);
-    std::vector<tools::wallet2> wallets;
-    wallets.reserve(N);
+    std::vector<tools::wallet2> wallets(N);
     std::uint32_t total_rounds_required = multisig::multisig_setup_rounds_required(N, M);
     std::uint32_t rounds_complete{0};
 
@@ -91,7 +73,9 @@ static void make_wallets(const unsigned int M, const unsigned int N, std::vector
 
     for (size_t i = 0; i < N; ++i)
     {
-        wallets.emplace_back(make_wallet());
+        wallets[i].init("", boost::none, "", 0, true, epee::net_utils::ssl_support_t::e_ssl_support_disabled);
+        wallets[i].set_subaddress_lookahead(1, 1);
+        wallets[i].generate("", "");
 
         wallets[i].decrypt_keys("");
         initial_infos[i] = wallets[i].get_multisig_first_kex_msg();
@@ -247,21 +231,21 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
     tools::wallet::pending_tx pending_tx = tools::detail::transfer_details_and_tx_proposal_to_multisig_pending_tx(
       tx_proposals[0],
       multisig_wallets[0]);
-    wallet2::multisig_tx_set multisig_tx_set = multisig_wallets[0].make_multisig_tx_set({pending_tx});
+    tools::wallet2::multisig_tx_set multisig_tx_set = multisig_wallets[0].make_multisig_tx_set({pending_tx});
     std::string tx_set_str = multisig_wallets[0].save_multisig_tx(multisig_tx_set);
 
     // 11.
     LOG_PRINT_L2("Another 2-of-3 participant signs and finalizes the partial tx");
-    wallet2::multisig_tx_set tx_set_recovered;
+    tools::wallet2::multisig_tx_set tx_set_recovered;
     multisig_wallets[1].parse_multisig_tx_from_str(tx_set_str, tx_set_recovered);
     std::vector<crypto::hash> txids_computed;
     multisig_wallets[1].sign_multisig_tx(tx_set_recovered, txids_computed);
     ASSERT_EQ(txids_computed.size(), 1);
-    auto tx = tx_set_recovered.m_ptx.tx;
+    auto recovered_tx = tx_set_recovered.m_ptx[0].tx;
 
     // 12.
     LOG_PRINT_L2("Serializing pending tx");
-    const cryptonote::blobdata to_bob_tx_blob = cryptonote::tx_to_blob(tx);
+    const cryptonote::blobdata to_bob_tx_blob = cryptonote::tx_to_blob(recovered_tx);
 
     // 13.
     LOG_PRINT_L2("Deserializing pending tx");
@@ -292,7 +276,7 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
     // 17.
     LOG_PRINT_L2("Bob scans received money");
     ASSERT_EQ(0, bob.balance_all(true));
-    blocks_added = bc.refresh_wallet(bob);
+    auto blocks_added = bc.refresh_wallet(bob);
     ASSERT_EQ(bc.height()-1, blocks_added);
     ASSERT_EQ(1, bob.m_transfers.size());
     EXPECT_EQ(out_amount, bob.balance_all(true));

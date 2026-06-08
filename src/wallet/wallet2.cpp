@@ -939,81 +939,6 @@ static tools::wallet::pending_tx finalize_all_proofs_from_transfer_details_as_pe
     *w.get_spend_device());
 }
 
-namespace detail
-{
-// Constructs a `pending_tx` for multisig signing with partially-signed SAL proofs.
-// There will be no membership proofs unless the multisig threshold is `1` (in which case
-// the tx will be fully signed and ready to submit).
-tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pending_tx(
-    const carrot::CarrotTransactionProposalV1 &tx_proposal,
-    const tools::wallet2 &w)
-{
-  // Pull multisig info from the selected transfers.
-  const std::unordered_map<crypto::public_key, size_t> best_transfer_by_ota =
-    tools::wallet::collect_non_burned_transfers_by_onetime_address(w.get_all_transfer_details());
-
-  size_t num_inputs = tx_proposal.input_proposals.size();
-  // POINTER SAFETY
-  // - thread-safe read access to `tools::wallet2`
-  // - pointers not returned from this function
-  std::vector<const std::vector<wallet2_basic::multisig_info>*> all_multisig_info(num_inputs, nullptr);
-  std::vector<crypto::key_image> key_images{};
-
-  for (size_t i = 0; i < num_inputs; ++i) {
-    const auto &input_proposal = tx_proposal.input_proposals[i];
-
-    // Look up transfer details
-    const auto best_it = best_transfer_by_ota.find(onetime_address_ref(input_proposal));
-    CHECK_AND_ASSERT_THROW_MES(best_it != best_transfer_by_ota.cend(), "failed collecting multisig details for pending tx");
-    const wallet2_basic::transfer_details &td = w.get_transfer_details(best_it->second);
-
-    // Save info ptr
-    all_multisig_info[i] = &td.m_multisig_info;
-
-    // Save precomputed key image
-    key_images.push_back(td.m_key_image);
-  }
-
-  std::sort(key_images.begin(), key_images.end(), std::greater{});
-
-  // Prep signers
-  const std::vector<std::unordered_set<crypto::public_key>> ignore_sets = w.multisig_attempt_ignore_sets();
-
-  // Construct `pending_tx`
-  const size_t threshold = w.get_multisig_status().threshold;
-  std::vector<std::vector<multisig::SalProofMultisigPartial>> saved_partial_sigs;
-  tools::wallet::pending_tx ptx = tools::wallet::tx_proposal_to_multisig_pending_tx(
-    tx_proposal,
-    ignore_sets,
-    all_multisig_info,
-    threshold,
-    w.get_account().get_multisig_keys(),
-    *w.get_address_device(),
-    *w.get_view_incoming_key_device(),
-    w.get_view_balance_secret_device().get(),
-    key_images,
-    saved_partial_sigs);
-
-  if (threshold == 1)
-  {
-    CHECK_AND_ASSERT_THROW_MES(
-      try_finalize_multisig_tx(
-        w.get_tree_cache_ref(),
-        w.get_curve_trees_ref(),
-        *w.get_address_device(),
-        w.get_view_incoming_key_device().get(),
-        w.get_view_balance_secret_device().get(),
-        key_images,
-        saved_partial_sigs,
-        ptx),
-      "tx and tx proposal to multisig pending tx: failed finalizing threshold-1 tx"
-    );
-  }
-
-  return ptx;
-}
-} //namespace detail
-
 uint64_t get_outgoing_amount(const cryptonote::transaction &tx, const uint64_t amount_spent)
 {
   return tx.version == 1 ? get_outs_money_amount(tx) : (amount_spent - tx.rct_signatures.txnFee);
@@ -1032,7 +957,7 @@ static std::vector<tools::wallet::pending_tx> carrot_tx_proposals_to_pending_txs
   for (const carrot::CarrotTransactionProposalV1 &tx_proposal : tx_proposals)
   {
     if (w.get_multisig_status().multisig_is_active)
-      ptx_vector.push_back(detail::transfer_details_and_tx_proposal_to_multisig_pending_tx(tx_proposal, w));
+      ptx_vector.push_back(tools::detail::transfer_details_and_tx_proposal_to_multisig_pending_tx(tx_proposal, w));
     else if (w.watch_only())
       ptx_vector.push_back(make_pending_carrot_tx(tx_proposal, /*sorted_input_key_images=*/{}, k_view_dev));
     else
@@ -1129,6 +1054,81 @@ crypto::chacha_key derive_cache_key(const crypto::chacha_key& keys_data_key, con
 
 namespace tools
 {
+namespace detail
+{
+// Constructs a `pending_tx` for multisig signing with partially-signed SAL proofs.
+// There will be no membership proofs unless the multisig threshold is `1` (in which case
+// the tx will be fully signed and ready to submit).
+tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pending_tx(
+    const carrot::CarrotTransactionProposalV1 &tx_proposal,
+    const tools::wallet2 &w)
+{
+  // Pull multisig info from the selected transfers.
+  const std::unordered_map<crypto::public_key, size_t> best_transfer_by_ota =
+    tools::wallet::collect_non_burned_transfers_by_onetime_address(w.get_all_transfer_details());
+
+  size_t num_inputs = tx_proposal.input_proposals.size();
+  // POINTER SAFETY
+  // - thread-safe read access to `tools::wallet2`
+  // - pointers not returned from this function
+  std::vector<const std::vector<wallet2_basic::multisig_info>*> all_multisig_info(num_inputs, nullptr);
+  std::vector<crypto::key_image> key_images{};
+
+  for (size_t i = 0; i < num_inputs; ++i) {
+    const auto &input_proposal = tx_proposal.input_proposals[i];
+
+    // Look up transfer details
+    const auto best_it = best_transfer_by_ota.find(onetime_address_ref(input_proposal));
+    CHECK_AND_ASSERT_THROW_MES(best_it != best_transfer_by_ota.cend(), "failed collecting multisig details for pending tx");
+    const wallet2_basic::transfer_details &td = w.get_transfer_details(best_it->second);
+
+    // Save info ptr
+    all_multisig_info[i] = &td.m_multisig_info;
+
+    // Save precomputed key image
+    key_images.push_back(td.m_key_image);
+  }
+
+  std::sort(key_images.begin(), key_images.end(), std::greater{});
+
+  // Prep signers
+  const std::vector<std::unordered_set<crypto::public_key>> ignore_sets = w.multisig_attempt_ignore_sets();
+
+  // Construct `pending_tx`
+  const size_t threshold = w.get_multisig_status().threshold;
+  std::vector<std::vector<multisig::SalProofMultisigPartial>> saved_partial_sigs;
+  tools::wallet::pending_tx ptx = tools::wallet::tx_proposal_to_multisig_pending_tx(
+    tx_proposal,
+    ignore_sets,
+    all_multisig_info,
+    threshold,
+    w.get_account().get_multisig_keys(),
+    *w.get_address_device(),
+    *w.get_view_incoming_key_device(),
+    w.get_view_balance_secret_device().get(),
+    key_images,
+    saved_partial_sigs);
+
+  if (threshold == 1)
+  {
+    CHECK_AND_ASSERT_THROW_MES(
+      try_finalize_multisig_tx(
+        w.get_tree_cache_ref(),
+        w.get_curve_trees_ref(),
+        *w.get_address_device(),
+        w.get_view_incoming_key_device().get(),
+        w.get_view_balance_secret_device().get(),
+        key_images,
+        saved_partial_sigs,
+        ptx),
+      "tx and tx proposal to multisig pending tx: failed finalizing threshold-1 tx"
+    );
+  }
+
+  return ptx;
+}
+} //namespace detail
+
 constexpr const std::chrono::seconds wallet2::rpc_timeout;
 const char* wallet2::tr(const char* str) { return i18n_translate(str, "tools::wallet2"); }
 
