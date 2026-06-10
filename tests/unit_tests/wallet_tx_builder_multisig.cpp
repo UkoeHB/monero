@@ -73,11 +73,13 @@ static void make_wallets(const unsigned int M, const unsigned int N, std::vector
 
     for (size_t i = 0; i < N; ++i)
     {
+        crypto::secret_key k_s = rct::rct2sk(rct::skGen());
         wallets[i].init("", boost::none, "", 0, true, epee::net_utils::ssl_support_t::e_ssl_support_disabled);
         wallets[i].set_offline(true);
-        wallets[i].generate("", "");
+        wallets[i].generate("", "", k_s, true, false);
 
         wallets[i].decrypt_keys("");
+        ASSERT_TRUE(k_s == wallets[i].get_account().get_keys().m_spend_secret_key);
         initial_infos[i] = wallets[i].get_multisig_first_kex_msg();
         wallets[i].encrypt_keys("");
     }
@@ -197,12 +199,20 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
     LOG_PRINT_L2("2-of-3 exporting info");
     std::vector<cryptonote::blobdata> multisig_exports;
     for (auto &w : multisig_wallets)
+    {
+        w.decrypt_keys("");
         multisig_exports.emplace_back(w.export_multisig());
+        w.encrypt_keys("");
+    }
 
     // 8.
     LOG_PRINT_L2("2-of-3 importing info");
     for (auto &w : multisig_wallets)
+    {
+        w.decrypt_keys("");
         w.import_multisig(multisig_exports, false);
+        w.encrypt_keys("");
+    }
 
     // 9.
     LOG_PRINT_L2("A 2-of-3 participant proposes a tx to pay Bob");
@@ -224,22 +234,25 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
             /*top_block_index=*/bc.height()-1);
     
     ASSERT_EQ(1, tx_proposals.size());
-    const carrot::CarrotTransactionProposalV1 tx_proposal = tx_proposals.at(0);
 
     // 10.
     LOG_PRINT_L2("The 2-of-3 participant initialize a partial tx");
+    multisig_wallets[0].decrypt_keys("");
     tools::wallet::pending_tx pending_tx = tools::detail::transfer_details_and_tx_proposal_to_multisig_pending_tx(
       tx_proposals[0],
       multisig_wallets[0]);
     tools::wallet2::multisig_tx_set multisig_tx_set = multisig_wallets[0].make_multisig_tx_set({pending_tx});
     std::string tx_set_str = multisig_wallets[0].save_multisig_tx(multisig_tx_set);
+    multisig_wallets[0].encrypt_keys("");
 
     // 11.
     LOG_PRINT_L2("Another 2-of-3 participant signs and finalizes the partial tx");
+    multisig_wallets[1].decrypt_keys("");
     tools::wallet2::multisig_tx_set tx_set_recovered;
     multisig_wallets[1].parse_multisig_tx_from_str(tx_set_str, tx_set_recovered);
     std::vector<crypto::hash> txids_computed;
     multisig_wallets[1].sign_multisig_tx(tx_set_recovered, txids_computed);
+    multisig_wallets[1].encrypt_keys("");
     ASSERT_EQ(txids_computed.size(), 1);
     auto recovered_tx = tx_set_recovered.m_ptx[0].tx;
 

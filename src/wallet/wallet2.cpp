@@ -14606,6 +14606,7 @@ wallet2::multisig_nonces wallet2::get_multisig_nonces(size_t n, const rct::key &
   CHECK_AND_ASSERT_THROW_MES(n < m_transfers.size(), "Bad m_transfers index");
   multisig_nonces nonces{};
   multisig::generate_multisig_nonces(
+    !carrot::is_carrot_transaction_v1(m_transfers[n].m_tx),
     m_transfers[n].get_public_key(),
     rct::rct2sk(k),
     (crypto::public_key&)nonces.m_L,
@@ -14896,9 +14897,9 @@ size_t wallet2::import_multisig(std::vector<cryptonote::blobdata> blobs, bool re
     {
       for (const auto &lr: e.m_LR)
       {
-        CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(lr.m_L), "Multisig value is not in the main subgroup");
-        CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(lr.m_R), "Multisig value is not in the main subgroup");
-        CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(lr.m_U), "Multisig value is not in the main subgroup");
+        CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(lr.m_L), "Multisig value L is not in the main subgroup");
+        CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(lr.m_R), "Multisig value R is not in the main subgroup");
+        CHECK_AND_ASSERT_THROW_MES(rct::isInMainSubgroup(lr.m_U), "Multisig value U is not in the main subgroup");
       }
       for (const auto &ki: e.m_partial_key_images)
       {

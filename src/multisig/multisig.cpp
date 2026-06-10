@@ -75,14 +75,17 @@ namespace multisig
     return true;
   }
   //----------------------------------------------------------------------------------------------------------------------
-  void generate_multisig_nonces(const crypto::public_key pkey,
+  void generate_multisig_nonces(const bool biased_hash_to_point,
+    const crypto::public_key pkey,
     const crypto::secret_key &k,
     crypto::public_key &L,
     crypto::public_key &R,
     crypto::public_key &U)
   {
     rct::scalarmultBase((rct::key&)L, rct::sk2rct(k));
-    crypto::generate_key_image(pkey, k, (crypto::key_image&)R);
+    ec_point ki_gen;
+    crypto::derive_key_image_generator(pkey, biased_hash_to_point, ki_gen);
+    rct::scalarmultKey((rct::key&)R, rct::pt2rct(ki_gen), rct::sk2rct(k));
     rct::scalarmultKey((rct::key&)L, rct::pk2rct(crypto::get_U()), rct::sk2rct(k));
   }
   //----------------------------------------------------------------------------------------------------------------------

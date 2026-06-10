@@ -222,7 +222,7 @@ bool gen_multisig_tx_validation_base::generate_with(std::vector<test_event_entry
         account_k[msidx][tdidx].push_back(rct::rct2sk(rct::skGen()));
         // Note: `account_U[msidx][tdidx][n]` not used, since CLSAG doesn't need it.
         crypto::public_key dummy_U;
-        multisig::generate_multisig_nonces(output_pub_key[tdidx], account_k[msidx][tdidx][n], account_L[msidx][tdidx][n], account_R[msidx][tdidx][n], dummy_U);
+        multisig::generate_multisig_nonces(false, output_pub_key[tdidx], account_k[msidx][tdidx][n], account_L[msidx][tdidx][n], account_R[msidx][tdidx][n], dummy_U);
       }
       size_t num_account_partial_ki = miner_account[msidx].get_multisig_keys().size();
       account_ki[msidx][tdidx].resize(num_account_partial_ki);

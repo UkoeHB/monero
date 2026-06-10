@@ -57,7 +57,8 @@ namespace multisig
   // L = k G
   // R = k Hp(pkey)
   // U = k U  (w/ generator `U`)
-  void generate_multisig_nonces(const crypto::public_key pkey,
+  void generate_multisig_nonces(const bool biased_hash_to_point,
+    const crypto::public_key pkey,
     const crypto::secret_key &k,
     crypto::public_key &L,
     crypto::public_key &R,

@@ -166,6 +166,7 @@ static void prepare_legacy_multisig_input_signing_attempt(
             local_alpha_out.push_back(a);
 
             multisig::generate_multisig_nonces(
+                use_biased_hash_to_point(opening_hint),
                 onetime_address,
                 a,
                 (crypto::public_key&)alpha_G_out.emplace_back(),
