@@ -83,10 +83,10 @@ namespace multisig
     crypto::public_key &U)
   {
     rct::scalarmultBase((rct::key&)L, rct::sk2rct(k));
-    ec_point ki_gen;
+    crypto::ec_point ki_gen;
     crypto::derive_key_image_generator(pkey, biased_hash_to_point, ki_gen);
     rct::scalarmultKey((rct::key&)R, rct::pt2rct(ki_gen), rct::sk2rct(k));
-    rct::scalarmultKey((rct::key&)L, rct::pk2rct(crypto::get_U()), rct::sk2rct(k));
+    rct::scalarmultKey((rct::key&)U, rct::pk2rct(crypto::get_U()), rct::sk2rct(k));
   }
   //----------------------------------------------------------------------------------------------------------------------
   bool generate_multisig_composite_key_image(const cryptonote::account_keys &keys,

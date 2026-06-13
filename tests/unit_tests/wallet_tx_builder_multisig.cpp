@@ -211,6 +211,7 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
     {
         w.decrypt_keys("");
         w.import_multisig(multisig_exports, false);
+        // bc.refresh_wallet(w);
         w.encrypt_keys("");
     }
 
