@@ -8396,11 +8396,6 @@ std::string wallet2::save_multisig_tx(multisig_tx_set txs)
       memwipe(&e.multisig_kLRki.k, sizeof(e.multisig_kLRki.k));
   }
 
-  for (auto &ptx: txs.m_ptx)
-  {
-    ptx.construction_data = std::get<wallet::PreCarrotTransactionProposal>(ptx.construction_data);
-  }
-
   // save as binary
   std::ostringstream oss;
   binary_archive<true> ar(oss);
@@ -8607,7 +8602,7 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
     multisig::signing::tx_builder_ringct_t multisig_tx_builder;
 
     // Add local partial signatures
-    if (use_fork_rules(HF_VERSION_CARROT))
+    if (use_fork_rules_offline(HF_VERSION_CARROT))
     {
       const carrot::CarrotTransactionProposalV1 *proposal = std::get_if<carrot::CarrotTransactionProposalV1>(
         &ptx.construction_data
@@ -8703,7 +8698,7 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
         {
           THROW_WALLET_EXCEPTION_IF(found, error::wallet_internal_error, "More than one transaction is final");
 
-          if (use_fork_rules(HF_VERSION_CARROT))
+          if (use_fork_rules_offline(HF_VERSION_CARROT))
           {
             THROW_WALLET_EXCEPTION_IF(!try_finalize_multisig_tx(
               this->get_tree_cache_ref(),

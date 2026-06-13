@@ -105,9 +105,9 @@ static void prepare_legacy_multisig_input_signing_attempt(
     std::unordered_set<rct::key> &all_used_L_inout,
     std::vector<rct::key> &used_L_out,
     std::vector<crypto::secret_key> &local_alpha_out,
-    rct::keyV alpha_G_out,
-    rct::keyV alpha_H_out,
-    rct::keyV alpha_U_out,
+    rct::keyV &alpha_G_out,
+    rct::keyV &alpha_H_out,
+    rct::keyV &alpha_U_out,
     crypto::key_image &key_image_out,
     rct::key &kU_out,
     // Subaddress extension + sender extension
