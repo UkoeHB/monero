@@ -1,4 +1,4 @@
-// Copyright (c) 2025, The Monero Project
+// Copyright (c) 2025-2026, The Monero Project
 //
 // All rights reserved.
 //
@@ -72,6 +72,21 @@ using carve_fees_and_balance_func_t = std::function<void(
         std::vector<CarrotPaymentProposalVerifiableSelfSendV1>& // selfsend payment proposals [inout]
     )>;
 
+/**
+ * brief: verifiable_selfsend_to_core_v1 - convert CarrotPaymentProposalVerifiableSelfSendV1 to CarrotPaymentProposalSelfSendV1
+ * param: p - CarrotPaymentProposalVerifiableSelfSendV1
+ * return CarrotPaymentProposalSelfSendV1 representing p, minus index info
+ */
+CarrotPaymentProposalSelfSendV1 verifiable_selfsend_to_core_v1(const CarrotPaymentProposalVerifiableSelfSendV1 &p);
+/**
+ * brief: selfsend_core_to_verifiable_v1 - convert CarrotPaymentProposalSelfSendV1 to CarrotPaymentProposalVerifiableSelfSendV1
+ * param: p - CarrotPaymentProposalSelfSendV1
+ * param: subaddr_index -
+ * return: CarrotPaymentProposalVerifiableSelfSendV1 representing p and subaddr_index
+ * throw: carrot_logic_error if subaddr_index.index.is_subaddress() != p.is_subaddress
+ */
+ CarrotPaymentProposalVerifiableSelfSendV1 selfsend_core_to_verifiable_v1(const CarrotPaymentProposalSelfSendV1 &p,
+    const subaddress_index_extended &subaddr_index);
 /**
  * brief: make_carrot_transaction_proposal_v1 - generic core function for forming single Carrot transaction proposals
  * param: normal_payment_proposals - normal payment proposals to be included in the tx

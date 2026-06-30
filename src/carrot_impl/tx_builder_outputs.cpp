@@ -35,6 +35,7 @@
 #include "carrot_core/output_set_finalization.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "format_utils.h"
+#include "tx_proposal_utils.h"
 
 //third party headers
 
@@ -80,7 +81,7 @@ void get_sorted_input_key_images_from_proposal_v1(const CarrotTransactionProposa
 //-------------------------------------------------------------------------------------------------------------------
 void get_output_enote_proposals_from_proposal_v1(const CarrotTransactionProposalV1 &tx_proposal,
     const view_balance_secret_device *s_view_balance_dev,
-    const view_incoming_key_device *k_view_dev,
+    const view_incoming_key_device *k_view_incoming_dev,
     const crypto::key_image &tx_first_key_image,
     std::vector<RCTOutputEnoteProposal> &output_enote_proposals_out,
     encrypted_payment_id_t &encrypted_payment_id_out,
@@ -90,14 +91,14 @@ void get_output_enote_proposals_from_proposal_v1(const CarrotTransactionProposal
     std::vector<CarrotPaymentProposalSelfSendV1> selfsend_payment_proposal_cores;
     selfsend_payment_proposal_cores.reserve(tx_proposal.selfsend_payment_proposals.size());
     for (const auto &selfsend_payment_proposal : tx_proposal.selfsend_payment_proposals)
-        selfsend_payment_proposal_cores.push_back(selfsend_payment_proposal.proposal);
+        selfsend_payment_proposal_cores.push_back(verifiable_selfsend_to_core_v1(selfsend_payment_proposal));
 
     // derive enote proposals
     get_output_enote_proposals(tx_proposal.normal_payment_proposals,
         selfsend_payment_proposal_cores,
         tx_proposal.dummy_encrypted_payment_id,
         s_view_balance_dev,
-        k_view_dev,
+        k_view_incoming_dev,
         tx_first_key_image,
         output_enote_proposals_out,
         encrypted_payment_id_out,
@@ -106,7 +107,7 @@ void get_output_enote_proposals_from_proposal_v1(const CarrotTransactionProposal
 //-------------------------------------------------------------------------------------------------------------------
 void get_output_enote_proposals_from_proposal_v1(const CarrotTransactionProposalV1 &tx_proposal,
     const view_balance_secret_device *s_view_balance_dev,
-    const view_incoming_key_device *k_view_dev,
+    const view_incoming_key_device *k_view_incoming_dev,
     const key_image_device &key_image_dev,
     std::vector<RCTOutputEnoteProposal> &output_enote_proposals_out,
     encrypted_payment_id_t &encrypted_payment_id_out,
@@ -119,31 +120,65 @@ void get_output_enote_proposals_from_proposal_v1(const CarrotTransactionProposal
 
     get_output_enote_proposals_from_proposal_v1(tx_proposal,
         s_view_balance_dev,
-        k_view_dev,
+        k_view_incoming_dev,
         sorted_input_key_images.at(0),
         output_enote_proposals_out,
         encrypted_payment_id_out,
         payment_proposal_order_out);
 }
 //-------------------------------------------------------------------------------------------------------------------
-void get_sender_receiver_secrets_from_proposal_v1(const std::vector<CarrotPaymentProposalV1> &normal_payment_proposals,
-    const std::vector<CarrotPaymentProposalVerifiableSelfSendV1> &selfsend_payment_proposals,
+void get_enote_ephemeral_privkeys_from_proposal_v1(
+    const CarrotTransactionProposalV1 &tx_proposal,
     const view_balance_secret_device *s_view_balance_dev,
-    const view_incoming_key_device *k_view_dev,
+    const view_incoming_key_device *k_view_incoming_dev,
     const crypto::key_image &tx_first_key_image,
-    std::vector<crypto::secret_key> &s_sender_receiver_out,
+    std::vector<crypto::secret_key> &enote_ephemeral_privkeys_out,
     std::vector<std::pair<bool, std::size_t>> &payment_proposal_order_out)
 {
-    s_sender_receiver_out.clear();
+    enote_ephemeral_privkeys_out.clear();
 
+    const auto &normal_payment_proposals = tx_proposal.normal_payment_proposals;
+    const auto &selfsend_payment_proposals = tx_proposal.selfsend_payment_proposals;
     const std::size_t n_outputs = normal_payment_proposals.size() + selfsend_payment_proposals.size();
-    s_sender_receiver_out.reserve(n_outputs);
+    enote_ephemeral_privkeys_out.reserve(n_outputs);
 
     // collect self-sends proposal cores
     std::vector<CarrotPaymentProposalSelfSendV1> selfsend_payment_proposal_cores;
     selfsend_payment_proposal_cores.reserve(selfsend_payment_proposals.size());
     for (const auto &selfsend_payment_proposal : selfsend_payment_proposals)
-        selfsend_payment_proposal_cores.push_back(selfsend_payment_proposal.proposal);
+        selfsend_payment_proposal_cores.push_back(verifiable_selfsend_to_core_v1(selfsend_payment_proposal));
+
+    // for the 2-out case, AKA shared D_e optimization case, append the shared d_e
+    if (2 == n_outputs)
+    {
+        CARROT_CHECK_AND_THROW(!selfsend_payment_proposal_cores.empty(),
+            too_few_outputs, "All txs need at least one self-send proposal");
+        const CarrotPaymentProposalSelfSendV1 &selfsend_0 = selfsend_payment_proposal_cores.at(0);
+        const CarrotPaymentProposalV1 *other_normal_payment_proposal = normal_payment_proposals.empty()
+            ? nullptr : &normal_payment_proposals.at(0);
+        const CarrotPaymentProposalSelfSendV1 *other_self_send_proposal = other_normal_payment_proposal
+            ? nullptr : &selfsend_payment_proposal_cores.at(1);
+        enote_ephemeral_privkeys_out.emplace_back(get_enote_ephemeral_privkey(
+            selfsend_0,
+            other_normal_payment_proposal,
+            other_self_send_proposal,
+            tx_first_key_image));
+
+        // check consistency of d_e generated on other enote
+        if (other_normal_payment_proposal)
+        {
+            assert(enote_ephemeral_privkeys_out.at(0) == get_enote_ephemeral_privkey(*other_normal_payment_proposal,
+                make_carrot_input_context(tx_first_key_image)));
+        }
+        else
+        {
+            assert(other_self_send_proposal);
+            assert(enote_ephemeral_privkeys_out.at(0) == get_enote_ephemeral_privkey(*other_self_send_proposal,
+                /*other_normal_payment_proposal=*/nullptr, &selfsend_0, tx_first_key_image));
+        }
+
+        return;
+    }
 
     // derive enote proposals (only to get proposal order in output set)
     std::vector<RCTOutputEnoteProposal> output_enote_proposals_out;
@@ -152,49 +187,39 @@ void get_sender_receiver_secrets_from_proposal_v1(const std::vector<CarrotPaymen
         selfsend_payment_proposal_cores,
         encrypted_payment_id_t{},
         s_view_balance_dev,
-        k_view_dev,
+        k_view_incoming_dev,
         tx_first_key_image,
         output_enote_proposals_out,
         encrypted_payment_id,
         &payment_proposal_order_out);
 
-    // special case: 2-out, 2-selfsend tx
-    if (n_outputs == 2 && selfsend_payment_proposals.size() == 2)
-    {
-        s_sender_receiver_out.emplace_back(); //! @TODO
-        return;
-    }
-
-    // derive s_sr in finalized output order
+    // derive d_e in finalized output order
     for (const std::pair<bool, std::size_t> &payment_proposal_idx : payment_proposal_order_out)
     {
+        crypto::secret_key &enote_ephemeral_privkey = enote_ephemeral_privkeys_out.emplace_back();
         const bool is_selfsend = payment_proposal_idx.first;
         if (is_selfsend)
         {
-            if (n_outputs == 2)
-                continue;
-            s_sender_receiver_out.emplace_back(); //! @TODO
+            // d_e is given
+            enote_ephemeral_privkey = get_enote_ephemeral_privkey(
+                selfsend_payment_proposal_cores.at(payment_proposal_idx.second),
+                /*other_normal_payment_proposal=*/nullptr,
+                /*other_self_send_proposal=*/nullptr,
+                tx_first_key_image);
         }
         else
         {
-            const auto &normal_payment_proposal = normal_payment_proposals.at(payment_proposal_idx.second);
             // d_e = H_n(anchor_norm, input_context, K^j_s, pid))
-            const crypto::secret_key enote_ephemeral_privkey = get_enote_ephemeral_privkey(normal_payment_proposal,
+            enote_ephemeral_privkey = get_enote_ephemeral_privkey(
+                normal_payment_proposals.at(payment_proposal_idx.second),
                 make_carrot_input_context(tx_first_key_image));
-            // s_sr = d_e ConvertPointE(K^j_v)
-            mx25519_pubkey s_sender_receiver;
-            CARROT_CHECK_AND_THROW(try_make_carrot_shared_key_sender(enote_ephemeral_privkey,
-                    normal_payment_proposal.destination.address_view_pubkey, s_sender_receiver),
-                invalid_point, "Invalid address view pubkey");
-            crypto::secret_key &s_sender_receiver_sk = s_sender_receiver_out.emplace_back();
-            memcpy(&unwrap(unwrap(s_sender_receiver_sk)), &s_sender_receiver, sizeof(s_sender_receiver_sk));
         }
     }
 }
 //-------------------------------------------------------------------------------------------------------------------
 void make_signable_tx_hash_from_proposal_v1(const CarrotTransactionProposalV1 &tx_proposal,
     const view_balance_secret_device *s_view_balance_dev,
-    const view_incoming_key_device *k_view_dev,
+    const view_incoming_key_device *k_view_incoming_dev,
     const std::vector<crypto::key_image> &sorted_input_key_images,
     crypto::hash &signable_tx_hash_out)
 {
@@ -204,7 +229,7 @@ void make_signable_tx_hash_from_proposal_v1(const CarrotTransactionProposalV1 &t
     cryptonote::transaction pruned_tx;
     make_pruned_transaction_from_proposal_v1(tx_proposal,
         s_view_balance_dev,
-        k_view_dev,
+        k_view_incoming_dev,
         sorted_input_key_images,
         pruned_tx);
 
@@ -213,7 +238,7 @@ void make_signable_tx_hash_from_proposal_v1(const CarrotTransactionProposalV1 &t
 //-------------------------------------------------------------------------------------------------------------------
 void make_signable_tx_hash_from_proposal_v1(const CarrotTransactionProposalV1 &tx_proposal,
     const view_balance_secret_device *s_view_balance_dev,
-    const view_incoming_key_device *k_view_dev,
+    const view_incoming_key_device *k_view_incoming_dev,
     const key_image_device &key_image_dev,
     crypto::hash &signable_tx_hash_out)
 {
@@ -224,14 +249,14 @@ void make_signable_tx_hash_from_proposal_v1(const CarrotTransactionProposalV1 &t
 
     make_signable_tx_hash_from_proposal_v1(tx_proposal,
         s_view_balance_dev,
-        k_view_dev,
+        k_view_incoming_dev,
         sorted_input_key_images,
         signable_tx_hash_out);
 }
 //-------------------------------------------------------------------------------------------------------------------
 void make_pruned_transaction_from_proposal_v1(const CarrotTransactionProposalV1 &tx_proposal,
     const view_balance_secret_device *s_view_balance_dev,
-    const view_incoming_key_device *k_view_dev,
+    const view_incoming_key_device *k_view_incoming_dev,
     const std::vector<crypto::key_image> &sorted_input_key_images,
     cryptonote::transaction &pruned_tx_out)
 {
@@ -245,7 +270,7 @@ void make_pruned_transaction_from_proposal_v1(const CarrotTransactionProposalV1 
     encrypted_payment_id_t encrypted_payment_id;
     get_output_enote_proposals_from_proposal_v1(tx_proposal,
         s_view_balance_dev,
-        k_view_dev,
+        k_view_incoming_dev,
         sorted_input_key_images.at(0),
         output_enote_proposals,
         encrypted_payment_id);
@@ -275,7 +300,7 @@ void make_pruned_transaction_from_proposal_v1(const CarrotTransactionProposalV1 
 //-------------------------------------------------------------------------------------------------------------------
 void make_pruned_transaction_from_proposal_v1(const CarrotTransactionProposalV1 &tx_proposal,
     const view_balance_secret_device *s_view_balance_dev,
-    const view_incoming_key_device *k_view_dev,
+    const view_incoming_key_device *k_view_incoming_dev,
     const key_image_device &key_image_dev,
     cryptonote::transaction &pruned_tx_out)
 {
@@ -285,7 +310,7 @@ void make_pruned_transaction_from_proposal_v1(const CarrotTransactionProposalV1 
 
     make_pruned_transaction_from_proposal_v1(tx_proposal,
         s_view_balance_dev,
-        k_view_dev,
+        k_view_incoming_dev,
         sorted_input_key_images,
         pruned_tx_out);
 }

@@ -52,8 +52,19 @@ using InputProposalV1 = OutputOpeningHintVariant;
  */
 struct CarrotPaymentProposalVerifiableSelfSendV1
 {
-    CarrotPaymentProposalSelfSendV1 proposal;
+    // one of our own address spend pubkeys: K^j_s
+    crypto::public_key destination_address_spend_pubkey;
+    /// K^j_s's subaddress index
     subaddress_index_extended subaddr_index;
+    /// a
+    xmr_amount amount;
+
+    /// enote_type
+    CarrotEnoteType enote_type;
+    /// enote ephemeral pubkey: d_e
+    std::optional<crypto::secret_key> enote_ephemeral_privkey;
+    /// anchor: arbitrary, pre-encrypted message for _internal_ selfsends
+    std::optional<janus_anchor_t> internal_message;
 };
 
 /**

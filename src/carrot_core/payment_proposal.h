@@ -1,4 +1,4 @@
-// Copyright (c) 2024, The Monero Project
+// Copyright (c) 2024-2026, The Monero Project
 //
 // All rights reserved.
 //
@@ -69,13 +69,15 @@ struct CarrotPaymentProposalSelfSendV1 final
 {
     /// one of our own address spend pubkeys: K^j_s
     crypto::public_key destination_address_spend_pubkey;
+    /// whether K^j_s belongs to a subaddress
+    bool is_subaddress;
     /// a
     xmr_amount amount;
 
     /// enote_type
     CarrotEnoteType enote_type;
-    /// enote ephemeral pubkey: D_e
-    std::optional<mx25519_pubkey> enote_ephemeral_pubkey;
+    /// enote ephemeral pubkey: d_e
+    std::optional<crypto::secret_key> enote_ephemeral_privkey;
     /// anchor: arbitrary, pre-encrypted message for _internal_ selfsends
     std::optional<janus_anchor_t> internal_message;
 };
@@ -95,13 +97,25 @@ bool operator==(const CarrotPaymentProposalV1 &a, const CarrotPaymentProposalV1 
 bool operator==(const CarrotPaymentProposalSelfSendV1 &a, const CarrotPaymentProposalSelfSendV1 &b);
 
 /**
-* brief: get_enote_ephemeral_privkey - get the proposal's enote ephemeral privkey d_e
+* brief: get_enote_ephemeral_privkey - get normal proposal's enote ephemeral privkey d_e
 * param: proposal -
 * param: input_context -
 * return: d_e
 */
 crypto::secret_key get_enote_ephemeral_privkey(const CarrotPaymentProposalV1 &proposal,
     const input_context_t &input_context);
+/**
+* brief: get_enote_ephemeral_privkey - get self-send proposal's enote ephemeral privkey d_e
+* param: proposal -
+* param: other_normal_payment_proposal - other normal payment proposal in a 2-out tx, if applicable
+* param: other_self_send_proposal - other self-send payment proposal in a 2-out tx, if applicable
+* param: tx_first_key_image -
+* return: d_e
+*/
+crypto::secret_key get_enote_ephemeral_privkey(const CarrotPaymentProposalSelfSendV1 &proposal,
+    const CarrotPaymentProposalV1 *other_normal_payment_proposal,
+    const CarrotPaymentProposalSelfSendV1 *other_self_send_proposal,
+    const crypto::key_image &tx_first_key_image);
 /**
 * brief: get_enote_ephemeral_pubkey - get the proposal's enote ephemeral pubkey D_e
 * param: proposal -
@@ -110,6 +124,18 @@ crypto::secret_key get_enote_ephemeral_privkey(const CarrotPaymentProposalV1 &pr
 */
 mx25519_pubkey get_enote_ephemeral_pubkey(const CarrotPaymentProposalV1 &proposal,
     const input_context_t &input_context);
+/**
+* brief: get_enote_ephemeral_pubkey - get self-send proposal's enote ephemeral pubkey D_e
+* param: proposal -
+* param: other_normal_payment_proposal - other normal payment proposal in a 2-out tx, if applicable
+* param: other_self_send_proposal - other self-send payment proposal in a 2-out tx, if applicable
+* param: tx_first_key_image -
+* return: D_e
+*/
+mx25519_pubkey get_enote_ephemeral_pubkey(const CarrotPaymentProposalSelfSendV1 &proposal,
+    const CarrotPaymentProposalV1 *other_normal_payment_proposal,
+    const CarrotPaymentProposalSelfSendV1 *other_self_send_proposal,
+    const crypto::key_image &tx_first_key_image);
 /**
 * brief: get_coinbase_enote_v1 - convert the carrot proposal to a coinbase output enote
 * param: proposal -
@@ -135,26 +161,30 @@ void get_output_proposal_normal_v1(const CarrotPaymentProposalV1 &proposal,
 * param: proposal -
 * param: k_view_dev -
 * param: tx_first_key_image -
-* param: other_enote_ephemeral_pubkey -
+* param: other_normal_payment_proposal - other normal payment proposal in a 2-out tx, if applicable
+* param: other_self_send_proposal - other self-send payment proposal in a 2-out tx, if applicable
 * outparam: output_enote_out -
 */
 void get_output_proposal_special_v1(const CarrotPaymentProposalSelfSendV1 &proposal,
     const view_incoming_key_device &k_view_dev,
     const crypto::key_image &tx_first_key_image,
-    const std::optional<mx25519_pubkey> &other_enote_ephemeral_pubkey,
+    const CarrotPaymentProposalV1 *other_normal_payment_proposal,
+    const CarrotPaymentProposalSelfSendV1 *other_self_send_proposal,
     RCTOutputEnoteProposal &output_enote_out);
 /**
 * brief: get_output_proposal_internal_v1 - convert the carrot proposal to an output proposal (internal)
 * param: proposal -
 * param: s_view_balance_dev -
 * param: tx_first_key_image -
-* param: other_enote_ephemeral_pubkey -
+* param: other_normal_payment_proposal - other normal payment proposal in a 2-out tx, if applicable
+* param: other_self_send_proposal - other self-send payment proposal in a 2-out tx, if applicable
 * outparam: output_enote_out -
 */
 void get_output_proposal_internal_v1(const CarrotPaymentProposalSelfSendV1 &proposal,
     const view_balance_secret_device &s_view_balance_dev,
     const crypto::key_image &tx_first_key_image,
-    const std::optional<mx25519_pubkey> &other_enote_ephemeral_pubkey,
+    const CarrotPaymentProposalV1 *other_normal_payment_proposal,
+    const CarrotPaymentProposalSelfSendV1 *other_self_send_proposal,
     RCTOutputEnoteProposal &output_enote_out);
 /**
 * brief: gen_carrot_payment_proposal_v1 - generate a random proposal

@@ -1,4 +1,4 @@
-// Copyright (c) 2024, The Monero Project
+// Copyright (c) 2024-2026, The Monero Project
 //
 // All rights reserved.
 //
@@ -102,7 +102,8 @@ std::variant<CarrotPaymentProposalV1, CarrotPaymentProposalSelfSendV1, std::null
     const size_t num_selfsend,
     const xmr_amount needed_change_amount,
     const bool have_payment_type_selfsend,
-    const crypto::public_key &change_address_spend_pubkey)
+    const crypto::public_key &change_address_spend_pubkey,
+    const bool change_address_is_subaddress)
 {
     const bool need_change_output = needed_change_amount != 0;
     const std::optional<AdditionalOutputType> additional_output_type = get_additional_output_type(
@@ -120,23 +121,26 @@ std::variant<CarrotPaymentProposalV1, CarrotPaymentProposalSelfSendV1, std::null
     case AdditionalOutputType::PAYMENT_SHARED:
         return CarrotPaymentProposalSelfSendV1{
             .destination_address_spend_pubkey = change_address_spend_pubkey,
+            .is_subaddress = change_address_is_subaddress,
             .amount = needed_change_amount,
             .enote_type = CarrotEnoteType::PAYMENT,
-            .enote_ephemeral_pubkey = std::nullopt
+            .enote_ephemeral_privkey = std::nullopt
         };
     case AdditionalOutputType::CHANGE_SHARED:
         return CarrotPaymentProposalSelfSendV1{
             .destination_address_spend_pubkey = change_address_spend_pubkey,
+            .is_subaddress = change_address_is_subaddress,
             .amount = needed_change_amount,
             .enote_type = CarrotEnoteType::CHANGE,
-            .enote_ephemeral_pubkey = std::nullopt
+            .enote_ephemeral_privkey = std::nullopt
         };
     case AdditionalOutputType::CHANGE_UNIQUE:
         return CarrotPaymentProposalSelfSendV1{
             .destination_address_spend_pubkey = change_address_spend_pubkey,
+            .is_subaddress = change_address_is_subaddress,
             .amount = needed_change_amount,
             .enote_type = CarrotEnoteType::CHANGE,
-            .enote_ephemeral_pubkey = std::nullopt
+            .enote_ephemeral_privkey = std::nullopt
         };
     case AdditionalOutputType::DUMMY:
         return CarrotPaymentProposalV1{
@@ -195,9 +199,6 @@ void get_output_enote_proposals(const std::vector<CarrotPaymentProposalV1> &norm
     std::vector<std::pair<RCTOutputEnoteProposal, std::pair<bool, size_t>>> sortable_data;
     sortable_data.reserve(num_proposals);
 
-    // D^other_e
-    std::optional<mx25519_pubkey> other_enote_ephemeral_pubkey;
-
     // construct normal enotes
     for (size_t i = 0; i < normal_payment_proposals.size(); ++i)
     {
@@ -209,10 +210,6 @@ void get_output_enote_proposals(const std::vector<CarrotPaymentProposalV1> &norm
             tx_first_key_image,
             output_entry.first,
             encrypted_payment_id);
-
-        // if 1 normal and 1 self-send, set D^other_e equal to this D_e
-        if (num_proposals == 2)
-            other_enote_ephemeral_pubkey = output_entry.first.enote.enote_ephemeral_pubkey;
 
         // set pid_enc from integrated address proposal pic_enc
         const bool is_integrated = normal_payment_proposals[i].destination.payment_id != null_payment_id;
@@ -228,14 +225,9 @@ void get_output_enote_proposals(const std::vector<CarrotPaymentProposalV1> &norm
         encrypted_payment_id_out = *dummy_encrypted_payment_id;
     }
 
-    // if 0 normal, and 2 self-send, set D^other_e equal to whichever *has* a D_e
-    if (num_proposals == 2 && num_selfsend_proposals == 2)
-    {
-        const size_t present_ephem_pk_index = selfsend_payment_proposals.at(0).enote_ephemeral_pubkey ? 0 : 1;
-        other_enote_ephemeral_pubkey = selfsend_payment_proposals.at(present_ephem_pk_index).enote_ephemeral_pubkey;
-        CARROT_CHECK_AND_THROW(other_enote_ephemeral_pubkey,
-            missing_ephemeral_key, "missing ephemeral key: 2-out tx with 2 selfsends needs 1 non-null D_e");
-    }
+    const bool is_2out_normal = num_proposals == 2 && normal_payment_proposals.size() == 1;
+    const bool is_2out_selfsend = num_proposals == 2 && selfsend_payment_proposals.size() == 2;
+    assert((num_proposals == 2) == (is_2out_normal ^ is_2out_selfsend));
 
     // construct selfsend enotes, preferring internal enotes over special enotes when possible
     for (size_t i = 0; i < num_selfsend_proposals; ++i)
@@ -250,7 +242,8 @@ void get_output_enote_proposals(const std::vector<CarrotPaymentProposalV1> &norm
             get_output_proposal_internal_v1(selfsend_payment_proposal,
                 *s_view_balance_dev,
                 tx_first_key_image,
-                other_enote_ephemeral_pubkey,
+                is_2out_normal ? &normal_payment_proposals.at(0) : nullptr,
+                is_2out_selfsend ? &selfsend_payment_proposals.at(1 - i) : nullptr,
                 output_entry.first);
         }
         else if (k_view_dev != nullptr)
@@ -258,7 +251,8 @@ void get_output_enote_proposals(const std::vector<CarrotPaymentProposalV1> &norm
             get_output_proposal_special_v1(selfsend_payment_proposal,
                 *k_view_dev,
                 tx_first_key_image,
-                other_enote_ephemeral_pubkey,
+                is_2out_normal ? &normal_payment_proposals.at(0) : nullptr,
+                is_2out_selfsend ? &selfsend_payment_proposals.at(1 - i) : nullptr,
                 output_entry.first);
         }
         else // neither k_v nor s_vb device passed

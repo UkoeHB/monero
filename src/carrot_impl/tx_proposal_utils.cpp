@@ -1,4 +1,4 @@
-// Copyright (c) 2024, The Monero Project
+// Copyright (c) 2025-2026, The Monero Project
 //
 // All rights reserved.
 //
@@ -62,10 +62,7 @@ static void append_additional_payment_proposal_if_necessary(
         void operator()(const CarrotPaymentProposalV1 &p) const { normal_proposals_inout.push_back(p); }
         void operator()(const CarrotPaymentProposalSelfSendV1 &p) const
         {
-            selfsend_proposals_inout.push_back(CarrotPaymentProposalVerifiableSelfSendV1{
-                .proposal = p,
-                .subaddr_index = change_subaddr_index
-            });
+            selfsend_proposals_inout.push_back(selfsend_core_to_verifiable_v1(p, change_subaddr_index));
         }
 
         std::vector<CarrotPaymentProposalV1>& normal_proposals_inout;
@@ -75,14 +72,15 @@ static void append_additional_payment_proposal_if_necessary(
 
     bool have_payment_type_selfsend = false;
     for (const CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal : selfsend_payment_proposals_inout)
-        if (selfsend_payment_proposal.proposal.enote_type == CarrotEnoteType::PAYMENT)
+        if (selfsend_payment_proposal.enote_type == CarrotEnoteType::PAYMENT)
             have_payment_type_selfsend = true;
 
     const auto additional_payment_proposal = get_additional_payment_proposal(normal_payment_proposals_inout.size(),
         selfsend_payment_proposals_inout.size(),
         /*needed_change_amount=*/0,
         have_payment_type_selfsend,
-        change_address_spend_pubkey);
+        change_address_spend_pubkey,
+        change_subaddr_index.index.is_subaddress());
 
     std::visit(append_additional_payment_proposal_if_necessary_visitor{
         normal_payment_proposals_inout,
@@ -91,6 +89,33 @@ static void append_additional_payment_proposal_if_necessary(
     }, additional_payment_proposal);
 }
 //-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+CarrotPaymentProposalSelfSendV1 verifiable_selfsend_to_core_v1(const CarrotPaymentProposalVerifiableSelfSendV1 &p)
+{
+    return CarrotPaymentProposalSelfSendV1{
+        .destination_address_spend_pubkey = p.destination_address_spend_pubkey,
+        .is_subaddress = p.subaddr_index.index.is_subaddress(),
+        .amount = p.amount,
+        .enote_type = p.enote_type,
+        .enote_ephemeral_privkey = p.enote_ephemeral_privkey,
+        .internal_message = p.internal_message
+    };
+}
+//-------------------------------------------------------------------------------------------------------------------
+CarrotPaymentProposalVerifiableSelfSendV1 selfsend_core_to_verifiable_v1(const CarrotPaymentProposalSelfSendV1 &p,
+    const subaddress_index_extended &subaddr_index)
+{
+    CARROT_CHECK_AND_THROW(p.is_subaddress == subaddr_index.index.is_subaddress(),
+        carrot_logic_error, "subaddress index does not match selfsend proposal's subaddress-yness");
+    return CarrotPaymentProposalVerifiableSelfSendV1{
+        .destination_address_spend_pubkey = p.destination_address_spend_pubkey,
+        .subaddr_index = subaddr_index,
+        .amount = p.amount,
+        .enote_type = p.enote_type,
+        .enote_ephemeral_privkey = p.enote_ephemeral_privkey,
+        .internal_message = p.internal_message
+    };
+}
 //-------------------------------------------------------------------------------------------------------------------
 void make_carrot_transaction_proposal_v1(const std::vector<CarrotPaymentProposalV1> &normal_payment_proposals_in,
     const std::vector<CarrotPaymentProposalVerifiableSelfSendV1> &selfsend_payment_proposals_in,
@@ -126,8 +151,8 @@ void make_carrot_transaction_proposal_v1(const std::vector<CarrotPaymentProposal
     //   b. not explicitly provided in a 2-out 2-self-send tx and the other is also missing
     const bool should_gen_selfsend_ephemeral_pubkeys = num_outs != 2 ||
         (normal_payment_proposals.empty()
-            && !selfsend_payment_proposals.at(0).proposal.enote_ephemeral_pubkey
-            && !selfsend_payment_proposals.at(1).proposal.enote_ephemeral_pubkey);
+            && !selfsend_payment_proposals.at(0).enote_ephemeral_privkey
+            && !selfsend_payment_proposals.at(1).enote_ephemeral_privkey);
     if (should_gen_selfsend_ephemeral_pubkeys)
     {
         for (size_t i = 0; i < selfsend_payment_proposals.size(); ++i)
@@ -137,8 +162,8 @@ void make_carrot_transaction_proposal_v1(const std::vector<CarrotPaymentProposal
             if (should_skip_generating)
                 continue;
             CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal = selfsend_payment_proposals[i];
-            if (!selfsend_payment_proposal.proposal.enote_ephemeral_pubkey)
-                selfsend_payment_proposal.proposal.enote_ephemeral_pubkey = gen_x25519_pubkey();
+            if (!selfsend_payment_proposal.enote_ephemeral_privkey)
+                crypto::random32_unbiased(to_bytes(selfsend_payment_proposal.enote_ephemeral_privkey.emplace()));
         }
     }
 
@@ -167,7 +192,7 @@ void make_carrot_transaction_proposal_v1(const std::vector<CarrotPaymentProposal
     for (const CarrotPaymentProposalV1 &normal_proposal : normal_payment_proposals)
         nominal_output_amount_sum += normal_proposal.amount;
     for (const CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_proposal : selfsend_payment_proposals)
-        nominal_output_amount_sum += selfsend_proposal.proposal.amount;
+        nominal_output_amount_sum += selfsend_proposal.amount;
 
     // callback to select inputs given nominal output sum and fee per input count
     std::vector<CarrotSelectedInput> selected_inputs;
@@ -200,7 +225,7 @@ void make_carrot_transaction_proposal_v1(const std::vector<CarrotPaymentProposal
     for (const CarrotPaymentProposalV1 &normal_payment_proposal : normal_payment_proposals)
         input_amount_sum -= normal_payment_proposal.amount;
     for (const CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal : selfsend_payment_proposals)
-        input_amount_sum -= selfsend_payment_proposal.proposal.amount;
+        input_amount_sum -= selfsend_payment_proposal.amount;
     CHECK_AND_ASSERT_THROW_MES(input_amount_sum == 0,
         "make_carrot_transaction_proposal_v1: post-carved transaction does not balance");
 
@@ -234,15 +259,13 @@ void make_carrot_transaction_proposal_v1_transfer(
     //       code might expect that transfers to N destinations always produces a transaction with N+1 outputs
     const bool add_payment_type_selfsend = normal_payment_proposals.empty() &&
         selfsend_payment_proposals.size() == 1 &&
-        selfsend_payment_proposals.at(0).proposal.enote_type == CarrotEnoteType::CHANGE;
+        selfsend_payment_proposals.at(0).enote_type == CarrotEnoteType::CHANGE;
 
     selfsend_payment_proposals.push_back(CarrotPaymentProposalVerifiableSelfSendV1{
-        .proposal = CarrotPaymentProposalSelfSendV1{
-            .destination_address_spend_pubkey = change_address_spend_pubkey,
-            .amount = 0,
-            .enote_type = add_payment_type_selfsend ? CarrotEnoteType::PAYMENT : CarrotEnoteType::CHANGE
-        },
-        .subaddr_index = change_address_index
+        .destination_address_spend_pubkey = change_address_spend_pubkey,
+        .subaddr_index = change_address_index,
+        .amount = 0,
+        .enote_type = add_payment_type_selfsend ? CarrotEnoteType::PAYMENT : CarrotEnoteType::CHANGE
     });
 
     // define carves fees and balance callback
@@ -282,7 +305,7 @@ void make_carrot_transaction_proposal_v1_transfer(
         // check selfsend proposal invariants
         CHECK_AND_ASSERT_THROW_MES(!selfsend_payment_proposals.empty(),
             "make unsigned transaction transfer subtractable: missing a selfsend proposal");
-        CHECK_AND_ASSERT_THROW_MES(selfsend_payment_proposals.back().proposal.amount == 0,
+        CHECK_AND_ASSERT_THROW_MES(selfsend_payment_proposals.back().amount == 0,
             "make unsigned transaction transfer subtractable: bug: added implicit change output has non-zero amount");
 
         // start by setting the last selfsend amount equal to (inputs - outputs), before fee
@@ -290,9 +313,9 @@ void make_carrot_transaction_proposal_v1_transfer(
         for (const CarrotPaymentProposalV1 &normal_payment_proposal : normal_payment_proposals)
             implicit_change_amount -= normal_payment_proposal.amount;
         for (const CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal : selfsend_payment_proposals)
-            implicit_change_amount -= selfsend_payment_proposal.proposal.amount;
+            implicit_change_amount -= selfsend_payment_proposal.amount;
 
-        selfsend_payment_proposals.back().proposal.amount =
+        selfsend_payment_proposals.back().amount =
             boost::numeric_cast<xmr_amount>(implicit_change_amount);
 
         // deduct an even fee amount from all subtractable outputs
@@ -309,11 +332,10 @@ void make_carrot_transaction_proposal_v1_transfer(
         }
         for (size_t selfsend_sub_idx : subtractable_selfsend_payment_proposals)
         {
-            CarrotPaymentProposalSelfSendV1 &selfsend_payment_proposal =
-                selfsend_payment_proposals[selfsend_sub_idx].proposal;
-            CHECK_AND_ASSERT_THROW_MES(selfsend_payment_proposal.amount >= minimum_subtraction,
+            xmr_amount &selfsend_amount = selfsend_payment_proposals[selfsend_sub_idx].amount;
+            CHECK_AND_ASSERT_THROW_MES(selfsend_amount >= minimum_subtraction,
                 "make unsigned transaction transfer subtractable: not enough funds in subtractable payment");
-            selfsend_payment_proposal.amount -= minimum_subtraction;
+            selfsend_amount -= minimum_subtraction;
         }
 
         // deduct 1 at a time from selfsend proposals
@@ -323,11 +345,10 @@ void make_carrot_transaction_proposal_v1_transfer(
             if (fee_remainder == 0)
                 break;
 
-            CarrotPaymentProposalSelfSendV1 &selfsend_payment_proposal =
-                selfsend_payment_proposals[selfsend_sub_idx].proposal;
-            CHECK_AND_ASSERT_THROW_MES(selfsend_payment_proposal.amount >= 1,
+            xmr_amount &selfsend_amount = selfsend_payment_proposals[selfsend_sub_idx].amount;
+            CHECK_AND_ASSERT_THROW_MES(selfsend_amount >= 1,
                 "make unsigned transaction transfer subtractable: not enough funds in subtractable payment");
-            selfsend_payment_proposal.amount -= 1;
+            selfsend_amount -= 1;
             fee_remainder -= 1;
         }
 
@@ -394,7 +415,7 @@ void make_carrot_transaction_proposal_v1_sweep(
     }
     for (const CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal : selfsend_payment_proposals)
     {
-        CHECK_AND_ASSERT_THROW_MES(selfsend_payment_proposal.proposal.amount == 0,
+        CHECK_AND_ASSERT_THROW_MES(selfsend_payment_proposal.amount == 0,
             "make carrot transaction proposal v1 sweep: payment proposal amount not 0");
     }
 
@@ -432,7 +453,7 @@ void make_carrot_transaction_proposal_v1_sweep(
         amount_ptrs.reserve(n_outputs);
         if (is_selfsend_sweep)
             for (CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal : selfsend_payment_proposals)
-                amount_ptrs.push_back(&selfsend_payment_proposal.proposal.amount);
+                amount_ptrs.push_back(&selfsend_payment_proposal.amount);
         else
             for (CarrotPaymentProposalV1 &normal_payment_proposal : normal_payment_proposals)
                 amount_ptrs.push_back(&normal_payment_proposal.amount);

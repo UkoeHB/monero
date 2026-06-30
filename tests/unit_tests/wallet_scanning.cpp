@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, The Monero Project
+// Copyright (c) 2023-2026, The Monero Project
 //
 // All rights reserved.
 //
@@ -577,7 +577,7 @@ TEST(wallet_scanning, positive_smallout_main_addr_all_types_outputs)
             cryptonote::tx_destination_entry(amount_k, acc_keys.m_account_address, false)};
         cryptonote::transaction curr_tx = mock::construct_carrot_pruned_transaction_fake_inputs(
             /*normal_payment_proposals=*/{},
-            {{carrot::mock::convert_selfsend_payment_proposal_v1(dests.front()), {/*main*/}}},
+            {selfsend_core_to_verifiable_v1(carrot::mock::convert_selfsend_payment_proposal_v1(dests.front()), {})},
             acc_keys);
         ASSERT_FALSE(cryptonote::is_coinbase(curr_tx));
         ASSERT_EQ(2, curr_tx.version);

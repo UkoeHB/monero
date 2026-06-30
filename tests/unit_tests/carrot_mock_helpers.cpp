@@ -1,4 +1,4 @@
-// Copyright (c) 2025, The Monero Project
+// Copyright (c) 2025-2026, The Monero Project
 //
 // All rights reserved.
 //
@@ -49,6 +49,8 @@
 
 namespace
 {
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
 static void reassign_non_borrowed_devices(carrot::mock::mock_carrot_and_legacy_keys &keys)
 {
     // hybrid_hierarchy_address_device and key_image_device_composed copy pubkeys at time of ctor
@@ -73,6 +75,16 @@ static void reassign_non_borrowed_devices(carrot::mock::mock_carrot_and_legacy_k
         k_view_incoming_dev
     ));
 }
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+static carrot::mock::mock_carrot_and_legacy_keys gen_default_person()
+{
+    carrot::mock::mock_carrot_and_legacy_keys guy;
+    guy.generate();
+    return guy;
+}
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
 } //anonymous namespace
 
 namespace carrot
@@ -721,9 +733,16 @@ CarrotPaymentProposalSelfSendV1 convert_selfsend_payment_proposal_v1(const crypt
         .destination_address_spend_pubkey = cn_dst.addr.m_spend_public_key,
         .amount = cn_dst.amount,
         .enote_type = CarrotEnoteType::PAYMENT,
-        .enote_ephemeral_pubkey = std::nullopt,
+        .enote_ephemeral_privkey = std::nullopt,
         .internal_message = std::nullopt
     };
+}
+//----------------------------------------------------------------------------------------------------------------------
+namespace people
+{
+const mock_carrot_and_legacy_keys alice = gen_default_person();
+const mock_carrot_and_legacy_keys bob = gen_default_person();
+const mock_carrot_and_legacy_keys eve = gen_default_person();
 }
 //----------------------------------------------------------------------------------------------------------------------
 } //namespace mock

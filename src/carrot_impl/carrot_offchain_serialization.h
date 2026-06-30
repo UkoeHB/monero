@@ -46,6 +46,19 @@
 
 //forward declarations
 
+#define OPTIONAL_SECRET_FIELD_F(f) {                                              \
+        ar.tag(#f);                                                               \
+        std::optional<crypto::hash> s;                                            \
+        if (W && v.f.has_value()) memcpy(s.emplace().data, v.f.value().data, 32); \
+        if (!do_serialize(ar, s)) return false;                                   \
+        if constexpr (!W) {                                                       \
+            if (s.has_value()) memcpy(v.f.emplace().data, s.value().data, 32);    \
+            else v.f.reset();                                                     \
+        }                                                                         \
+        if (s.has_value()) memwipe(s.value().data, 32);                           \
+        if (!ar.good()) return false;                                             \
+    }                                                                             \
+
 BLOB_SERIALIZER(carrot::amount_commitment_t);
 BLOB_SERIALIZER(carrot::encrypted_amount_t);
 BLOB_SERIALIZER(carrot::payment_id_t);
@@ -81,7 +94,7 @@ BEGIN_SERIALIZE_OBJECT_FN(carrot::CarrotPaymentProposalSelfSendV1)
     FIELD_F(destination_address_spend_pubkey)
     VARINT_FIELD_F(amount)
     VARINT_FIELD_F(enote_type)
-    FIELD_F(enote_ephemeral_pubkey)
+    OPTIONAL_SECRET_FIELD_F(enote_ephemeral_privkey)
     FIELD_F(internal_message)
 END_SERIALIZE()
 
@@ -147,8 +160,12 @@ BEGIN_SERIALIZE_OBJECT_FN(carrot::CarrotCoinbaseOutputOpeningHintV1)
 END_SERIALIZE()
 
 BEGIN_SERIALIZE_OBJECT_FN(carrot::CarrotPaymentProposalVerifiableSelfSendV1)
-    FIELD_F(proposal)
+    FIELD_F(destination_address_spend_pubkey)
     FIELD_F(subaddr_index)
+    VARINT_FIELD_F(amount)
+    VARINT_FIELD_F(enote_type)
+    OPTIONAL_SECRET_FIELD_F(enote_ephemeral_privkey)
+    FIELD_F(internal_message)
 END_SERIALIZE()
 
 BEGIN_SERIALIZE_OBJECT_FN(carrot::CarrotTransactionProposalV1)

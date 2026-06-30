@@ -228,6 +228,13 @@ CarrotPaymentProposalV1 convert_normal_payment_proposal_v1(const cryptonote::tx_
 //----------------------------------------------------------------------------------------------------------------------
 CarrotPaymentProposalSelfSendV1 convert_selfsend_payment_proposal_v1(const cryptonote::tx_destination_entry &cn_dst);
 //----------------------------------------------------------------------------------------------------------------------
+namespace people
+{
+extern const mock_carrot_and_legacy_keys alice;
+extern const mock_carrot_and_legacy_keys bob;
+extern const mock_carrot_and_legacy_keys eve;
+//----------------------------------------------------------------------------------------------------------------------
+} //namespace people
 } //namespace mock
 } //namespace carrot
 static inline bool operator==(const mx25519_pubkey &a, const mx25519_pubkey &b)

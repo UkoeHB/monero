@@ -1,4 +1,4 @@
-// Copyright (c) 2024, The Monero Project
+// Copyright (c) 2024-2026, The Monero Project
 //
 // All rights reserved.
 //
@@ -178,7 +178,7 @@ static void subtest_legacy_2out_transfer_get_output_enote_proposals_completeness
         .destination_address_spend_pubkey = alice_address.address_spend_pubkey,
         .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
         .enote_type = CarrotEnoteType::CHANGE,
-        .enote_ephemeral_pubkey = get_enote_ephemeral_pubkey(bob_payment_proposal, input_context)
+        .enote_ephemeral_privkey = get_enote_ephemeral_privkey(bob_payment_proposal, input_context)
     };
 
     // alice mem devices
@@ -224,7 +224,7 @@ static void subtest_legacy_2out_transfer_get_output_enote_proposals_completeness
     // check Alice's recovered data
     EXPECT_EQ(alice_payment_proposal.destination_address_spend_pubkey, alice_scan.address_spend_pubkey);
     EXPECT_EQ(alice_payment_proposal.amount, alice_scan.amount);
-    EXPECT_EQ(alice_enote.amount_commitment, 
+    EXPECT_EQ(alice_enote.amount_commitment,
         commit_carrot_amount(alice_scan.amount, alice_scan.amount_blinding_factor));
     EXPECT_EQ(null_payment_id, alice_scan.payment_id);
     EXPECT_EQ(alice_payment_proposal.enote_type, alice_scan.enote_type);

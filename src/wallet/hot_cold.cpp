@@ -1,4 +1,4 @@
-// Copyright (c) 2025, The Monero Project
+// Copyright (c) 2025-2026, The Monero Project
 //
 // All rights reserved.
 //
@@ -19,10 +19,10 @@
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
-// THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
+// THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
 // PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
@@ -302,7 +302,7 @@ wallet2_basic::transfer_details import_cold_pre_carrot_output(const exported_pre
         crypto::key_derivation kd;
         CHECK_AND_ASSERT_THROW_MES(hwdev.generate_key_derivation(tx_pub_key, acc_keys.m_view_secret_key, kd),
             "could not import transfer details: ECDH key derivation failed");
-        
+
         crypto::secret_key amount_key;
         CHECK_AND_ASSERT_THROW_MES(hwdev.derivation_to_scalar(kd, td.m_internal_output_index, amount_key),
             "could not import transfer details: derivation to scalar failed");
@@ -392,23 +392,65 @@ wallet2_basic::transfer_details import_cold_carrot_output(const exported_carrot_
             const carrot::CarrotEnoteType enote_type = etd.flags.m_enote_type_change
                 ? carrot::CarrotEnoteType::CHANGE : carrot::CarrotEnoteType::PAYMENT;
 
-            const carrot::CarrotPaymentProposalSelfSendV1 payment_proposal{
-                .destination_address_spend_pubkey = destination.address_spend_pubkey,
-                .amount = td.amount(),
-                .enote_type = enote_type,
-                .enote_ephemeral_pubkey = etd.selfsend_enote_ephemeral_pubkey,
-                .internal_message = etd.janus_anchor
-            };
-
             //! @TODO: HW device k_view
             const carrot::view_incoming_key_ram_borrowed_device k_view_dev(acc_keys.m_view_secret_key);
 
-            // construct enote
-            carrot::get_output_proposal_special_v1(payment_proposal,
-                k_view_dev,
-                etd.tx_first_key_image,
+             // s_sr
+            tools::scrubbed<mx25519_pubkey> s_sender_receiver;
+            CHECK_AND_ASSERT_THROW_MES(carrot::try_make_carrot_shared_key_receiver(k_view_dev,
+                    etd.selfsend_enote_ephemeral_pubkey, s_sender_receiver),
+                "cannot import transfer details: cannot make ECDH");
+
+            // input_context
+            const carrot::input_context_t input_context = carrot::make_carrot_input_context(etd.tx_first_key_image);
+
+            // s^ctx_sr
+            tools::scrubbed<crypto::hash> s_sender_receiver_ctx;
+            carrot::make_carrot_contextualized_sender_receiver_secret(s_sender_receiver.data,
                 etd.selfsend_enote_ephemeral_pubkey,
-                output_enote_proposal);
+                input_context,
+                s_sender_receiver_ctx);
+
+            // k_a
+            carrot::make_carrot_amount_blinding_factor(s_sender_receiver_ctx,
+                etd.amount,
+                destination.address_spend_pubkey,
+                enote_type,
+                output_enote_proposal.amount_blinding_factor);
+
+            // C_a
+            const carrot::amount_commitment_t amount_commitment = carrot::commit_carrot_amount(etd.amount,
+                output_enote_proposal.amount_blinding_factor);
+
+            // K_o
+            crypto::public_key onetime_address;
+            CHECK_AND_ASSERT_THROW_MES(carrot::try_make_carrot_onetime_address(destination.address_spend_pubkey,
+                    s_sender_receiver_ctx, amount_commitment, onetime_address),
+                "cannot import transfer details: cannot make one-time address");
+
+            // v_t
+            carrot::view_tag_t view_tag;
+            carrot::make_carrot_view_tag(s_sender_receiver.data, input_context, onetime_address, view_tag);
+
+            // encrypt components
+            if (etd.payment_id != carrot::null_payment_id)
+                encrypted_payment_id = carrot::encrypt_legacy_payment_id(etd.payment_id,
+                    s_sender_receiver_ctx, onetime_address);
+            const carrot::encrypted_amount_t a_enc = carrot::encrypt_carrot_amount(etd.amount,
+                s_sender_receiver_ctx, onetime_address);
+            const carrot::janus_anchor_t anchor_enc = carrot::encrypt_carrot_anchor(etd.janus_anchor,
+                s_sender_receiver_ctx, onetime_address);
+
+            output_enote_proposal.amount = etd.amount;
+            output_enote_proposal.enote = carrot::CarrotEnoteV1{
+                .onetime_address = onetime_address,
+                .amount_commitment = amount_commitment,
+                .amount_enc = a_enc,
+                .anchor_enc = anchor_enc,
+                .view_tag = view_tag,
+                .enote_ephemeral_pubkey = etd.selfsend_enote_ephemeral_pubkey,
+                .tx_first_key_image = etd.tx_first_key_image
+            };
         }
         else // normal non-coinbase
         {
@@ -460,12 +502,12 @@ wallet2_basic::transfer_details import_cold_output(const exported_transfer_detai
     {
         wallet2_basic::transfer_details operator()(const exported_pre_carrot_transfer_details &etd) const
         {
-           return import_cold_pre_carrot_output(etd, acc_keys); 
+           return import_cold_pre_carrot_output(etd, acc_keys);
         }
 
         wallet2_basic::transfer_details operator()(const exported_carrot_transfer_details &etd) const
         {
-           return import_cold_carrot_output(etd, acc_keys); 
+           return import_cold_carrot_output(etd, acc_keys);
         }
 
         const cryptonote::account_keys &acc_keys;

@@ -1,4 +1,4 @@
-// Copyright (c) 2025, The Monero Project
+// Copyright (c) 2025-2026, The Monero Project
 //
 // All rights reserved.
 //
@@ -90,14 +90,12 @@ static const CarrotUnifiedOutputsAndKeys generate_random_carrot_outputs(
             .amount = rct::randXmrAmount(MAX_AMOUNT_FCMP_PP),
             .randomness = gen_janus_anchor()
         };
-        CarrotPaymentProposalVerifiableSelfSendV1 selfsend_payment_proposal{
-            .proposal = CarrotPaymentProposalSelfSendV1{
-                .destination_address_spend_pubkey = keys.cryptonote_address().address_spend_pubkey,
-                .amount = rct::randXmrAmount(MAX_AMOUNT_FCMP_PP),
-                .enote_type = i % 2 ? CarrotEnoteType::CHANGE : CarrotEnoteType::PAYMENT,
-                .enote_ephemeral_pubkey = gen_x25519_pubkey()
-            },
-            .subaddr_index = {{0, 0}}
+        CarrotPaymentProposalSelfSendV1 selfsend_payment_proposal{
+            .destination_address_spend_pubkey = keys.cryptonote_address().address_spend_pubkey,
+            .is_subaddress = false,
+            .amount = rct::randXmrAmount(MAX_AMOUNT_FCMP_PP),
+            .enote_type = i % 2 ? CarrotEnoteType::CHANGE : CarrotEnoteType::PAYMENT,
+            .enote_ephemeral_privkey = mock::gen_secret_key()
         };
 
         bool push_coinbase = false;
@@ -128,37 +126,41 @@ static const CarrotUnifiedOutputsAndKeys generate_random_carrot_outputs(
                 encrypted_payment_id);
             break;
         case 3: // special enote main address
-            get_output_proposal_special_v1(selfsend_payment_proposal.proposal,
+            get_output_proposal_special_v1(selfsend_payment_proposal,
                 keys.k_view_incoming_dev,
                 mock::gen_key_image(),
-                std::nullopt,
+                nullptr,
+                nullptr,
                 rct_output_enote_proposal);
             break;
         case 4: // special enote subaddress
-            selfsend_payment_proposal.subaddr_index.index = mock::gen_subaddress_index();
-            selfsend_payment_proposal.proposal.destination_address_spend_pubkey
-                = keys.subaddress(selfsend_payment_proposal.subaddr_index).address_spend_pubkey;
-            get_output_proposal_special_v1(selfsend_payment_proposal.proposal,
+            selfsend_payment_proposal.destination_address_spend_pubkey
+                = keys.subaddress(mock::gen_subaddress_index_extended()).address_spend_pubkey;
+            selfsend_payment_proposal.is_subaddress = false;
+            get_output_proposal_special_v1(selfsend_payment_proposal,
                 keys.k_view_incoming_dev,
                 mock::gen_key_image(),
-                std::nullopt,
+                nullptr,
+                nullptr,
                 rct_output_enote_proposal);
             break;
         case 5: // internal main address
-            get_output_proposal_internal_v1(selfsend_payment_proposal.proposal,
+            get_output_proposal_internal_v1(selfsend_payment_proposal,
                 keys.s_view_balance_dev,
                 mock::gen_key_image(),
-                std::nullopt,
+                nullptr,
+                nullptr,
                 rct_output_enote_proposal);
             break;
         case 6: // internal subaddress
-            selfsend_payment_proposal.subaddr_index.index = mock::gen_subaddress_index();
-            selfsend_payment_proposal.proposal.destination_address_spend_pubkey
-                = keys.subaddress(selfsend_payment_proposal.subaddr_index).address_spend_pubkey;
-            get_output_proposal_internal_v1(selfsend_payment_proposal.proposal,
+            selfsend_payment_proposal.destination_address_spend_pubkey
+                = keys.subaddress(mock::gen_subaddress_index_extended()).address_spend_pubkey;
+            selfsend_payment_proposal.is_subaddress = false;
+            get_output_proposal_internal_v1(selfsend_payment_proposal,
                 keys.s_view_balance_dev,
                 mock::gen_key_image(),
-                std::nullopt,
+                nullptr,
+                nullptr,
                 rct_output_enote_proposal);
             break;
         }
@@ -369,11 +371,6 @@ TEST(carrot_fcmp, receive_scan_spend_and_verify_serialized_carrot_tx)
 
     ASSERT_EQ(n_outputs, tx_proposal.normal_payment_proposals.size() + tx_proposal.selfsend_payment_proposals.size());
 
-    // collect core selfsend proposals
-    std::vector<CarrotPaymentProposalSelfSendV1> selfsend_payment_proposal_cores;
-    for (const CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal : tx_proposal.selfsend_payment_proposals)
-        selfsend_payment_proposal_cores.push_back(selfsend_payment_proposal.proposal);
-
     // derive input key images
     std::vector<crypto::key_image> sorted_input_key_images;
     carrot::get_sorted_input_key_images_from_proposal_v1(tx_proposal,
@@ -384,9 +381,7 @@ TEST(carrot_fcmp, receive_scan_spend_and_verify_serialized_carrot_tx)
     LOG_PRINT_L1("Deriving enotes");
     std::vector<RCTOutputEnoteProposal> output_enote_proposals;
     encrypted_payment_id_t encrypted_payment_id;
-    get_output_enote_proposals(tx_proposal.normal_payment_proposals,
-        selfsend_payment_proposal_cores,
-        tx_proposal.dummy_encrypted_payment_id,
+    get_output_enote_proposals_from_proposal_v1(tx_proposal,
         &alice.s_view_balance_dev,
         &alice.k_view_incoming_dev,
         sorted_input_key_images.at(0),

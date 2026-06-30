@@ -1,4 +1,4 @@
-// Copyright (c) 2025, The Monero Project
+// Copyright (c) 2025-2026, The Monero Project
 //
 // All rights reserved.
 //
@@ -126,7 +126,7 @@ TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_transfer_1)
 
     // Assert amounts
     EXPECT_EQ(out_amount, tx_proposal.normal_payment_proposals.front().amount);
-    EXPECT_EQ(out_amount + tx_proposal.selfsend_payment_proposals.front().proposal.amount + tx_proposal.fee,
+    EXPECT_EQ(out_amount + tx_proposal.selfsend_payment_proposals.front().amount + tx_proposal.fee,
         transfers.front().amount());
 }
 //----------------------------------------------------------------------------------------------------------------------
@@ -202,7 +202,7 @@ TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_transfer_2)
     // Assert balanced amounts
     boost::multiprecision::uint128_t out_sum = tx_proposal.fee;
     out_sum += normal_payment_proposal.amount;
-    out_sum += selfsend_payment_proposal.proposal.amount;
+    out_sum += selfsend_payment_proposal.amount;
     ASSERT_EQ(in_sum, out_sum);
 
     // Assert pubkeys/subaddr indices/amounts of payment proposals
@@ -211,10 +211,10 @@ TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_transfer_2)
     EXPECT_EQ(spending_subaddr_account, selfsend_payment_proposal.subaddr_index.index.major);
     EXPECT_EQ(0, selfsend_payment_proposal.subaddr_index.index.minor);
     EXPECT_EQ(alice.subaddress({{spending_subaddr_account, 0}, carrot::AddressDeriveType::Carrot}).address_spend_pubkey,
-        selfsend_payment_proposal.proposal.destination_address_spend_pubkey);
-    EXPECT_EQ(carrot::CarrotEnoteType::CHANGE, selfsend_payment_proposal.proposal.enote_type);
-    EXPECT_FALSE(selfsend_payment_proposal.proposal.internal_message);
-    EXPECT_FALSE(selfsend_payment_proposal.proposal.enote_ephemeral_pubkey);
+        selfsend_payment_proposal.destination_address_spend_pubkey);
+    EXPECT_EQ(carrot::CarrotEnoteType::CHANGE, selfsend_payment_proposal.enote_type);
+    EXPECT_FALSE(selfsend_payment_proposal.internal_message);
+    EXPECT_FALSE(selfsend_payment_proposal.enote_ephemeral_privkey);
 }
 //----------------------------------------------------------------------------------------------------------------------
 TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_transfer_3)
@@ -264,7 +264,7 @@ TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_transfer_3)
 
     // Assert amounts
     EXPECT_EQ(out_amount, tx_proposal.normal_payment_proposals.front().amount + tx_proposal.fee);
-    EXPECT_EQ(out_amount + tx_proposal.selfsend_payment_proposals.front().proposal.amount,
+    EXPECT_EQ(out_amount + tx_proposal.selfsend_payment_proposals.front().amount,
         transfers.front().amount());
 }
 //----------------------------------------------------------------------------------------------------------------------
@@ -320,7 +320,7 @@ TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_transfer_4)
 
     // Assert amounts
     EXPECT_EQ(out_amount, tx_proposal.normal_payment_proposals.front().amount + tx_proposal.fee);
-    EXPECT_EQ(out_amount + tx_proposal.selfsend_payment_proposals.front().proposal.amount,
+    EXPECT_EQ(out_amount + tx_proposal.selfsend_payment_proposals.front().amount,
         transfers.front().amount());
 
     // Check that non-fee-subtractable fails
@@ -369,7 +369,7 @@ TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_sweep_1)
     EXPECT_EQ(0, tx_proposal.extra.size());
 
     // Assert amounts
-    EXPECT_EQ(0, tx_proposal.selfsend_payment_proposals.front().proposal.amount);
+    EXPECT_EQ(0, tx_proposal.selfsend_payment_proposals.front().amount);
     EXPECT_EQ(transfers.front().amount(), tx_proposal.fee + tx_proposal.normal_payment_proposals.front().amount);
 }
 //----------------------------------------------------------------------------------------------------------------------
@@ -403,7 +403,7 @@ TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_sweep_2)
     EXPECT_EQ(0, tx_proposal.extra.size());
 
     // Assert amounts
-    EXPECT_EQ(0, tx_proposal.selfsend_payment_proposals.front().proposal.amount);
+    EXPECT_EQ(0, tx_proposal.selfsend_payment_proposals.front().amount);
     rct::xmr_amount total_output_amount = tx_proposal.fee;
     const rct::xmr_amount first_output_amount = tx_proposal.normal_payment_proposals.at(0).amount;
     for (const auto &normal_payment_proposal : tx_proposal.normal_payment_proposals)
@@ -446,10 +446,10 @@ TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_sweep_3)
 
     // Assert amounts
     rct::xmr_amount total_output_amount = tx_proposal.fee;
-    const rct::xmr_amount first_output_amount = tx_proposal.selfsend_payment_proposals.at(0).proposal.amount;
+    const rct::xmr_amount first_output_amount = tx_proposal.selfsend_payment_proposals.at(0).amount;
     for (const auto &selfsend_payment_proposal : tx_proposal.selfsend_payment_proposals)
     {
-        const rct::xmr_amount amount = selfsend_payment_proposal.proposal.amount;
+        const rct::xmr_amount amount = selfsend_payment_proposal.amount;
         const rct::xmr_amount max_amount = std::max(amount, first_output_amount);
         const rct::xmr_amount min_amount = std::min(amount, first_output_amount);
         EXPECT_LE(max_amount - min_amount, 1);
@@ -520,7 +520,7 @@ TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_sweep_4)
         ASSERT_LE(tx_proposal.input_proposals.size(), FCMP_PLUS_PLUS_MAX_INPUTS);
         ASSERT_EQ(n_dests_per_tx, tx_proposal.normal_payment_proposals.size());
         ASSERT_EQ(1, tx_proposal.selfsend_payment_proposals.size());
-        ASSERT_EQ(0, tx_proposal.selfsend_payment_proposals.at(0).proposal.amount);
+        ASSERT_EQ(0, tx_proposal.selfsend_payment_proposals.at(0).amount);
         EXPECT_EQ(0, tx_proposal.extra.size());
 
         rct::xmr_amount tx_inputs_amount = 0;
@@ -621,7 +621,7 @@ TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_sweep_5)
         }
         rct::xmr_amount tx_outputs_amount = tx_proposal.fee;
         for (const carrot::CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal : tx_proposal.selfsend_payment_proposals)
-            tx_outputs_amount += selfsend_payment_proposal.proposal.amount;
+            tx_outputs_amount += selfsend_payment_proposal.amount;
         ASSERT_EQ(tx_inputs_amount, tx_outputs_amount);
 
         n_actual_inputs += tx_proposal.input_proposals.size();
@@ -699,14 +699,14 @@ TEST(wallet_tx_builder, make_carrot_transaction_proposals_wallet2_sweep_6)
         actual_seen_otas.insert(ota);
         tx_inputs_amount += amounts_by_ota.at(ota);
     }
-    const rct::xmr_amount output_amount_0 = tx_proposal.selfsend_payment_proposals.at(0).proposal.amount;
-    const rct::xmr_amount output_amount_1 = tx_proposal.selfsend_payment_proposals.at(1).proposal.amount;
+    const rct::xmr_amount output_amount_0 = tx_proposal.selfsend_payment_proposals.at(0).amount;
+    const rct::xmr_amount output_amount_1 = tx_proposal.selfsend_payment_proposals.at(1).amount;
     const rct::xmr_amount tx_outputs_amount = tx_proposal.fee + output_amount_0 + output_amount_1;
     ASSERT_EQ(tx_inputs_amount, tx_outputs_amount);
     ASSERT_LE(std::max(output_amount_0, output_amount_1) - std::min(output_amount_0, output_amount_1), 1);
 
-    const carrot::CarrotEnoteType enote_type_0 = tx_proposal.selfsend_payment_proposals.at(0).proposal.enote_type;
-    const carrot::CarrotEnoteType enote_type_1 = tx_proposal.selfsend_payment_proposals.at(1).proposal.enote_type;
+    const carrot::CarrotEnoteType enote_type_0 = tx_proposal.selfsend_payment_proposals.at(0).enote_type;
+    const carrot::CarrotEnoteType enote_type_1 = tx_proposal.selfsend_payment_proposals.at(1).enote_type;
     ASSERT_NE(enote_type_0, enote_type_1);
 }
 //----------------------------------------------------------------------------------------------------------------------

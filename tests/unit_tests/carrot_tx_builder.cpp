@@ -1,4 +1,4 @@
-// Copyright (c) 2025, The Monero Project
+// Copyright (c) 2025-2026, The Monero Project
 //
 // All rights reserved.
 //
@@ -423,14 +423,16 @@ TEST(carrot_tx_builder, make_sal_proof_carrot_to_legacy_v1_subaddr_special)
     const CarrotPaymentProposalSelfSendV1 selfsend_payment_proposal{
         .destination_address_spend_pubkey = addr.address_spend_pubkey,
         .amount = crypto::rand<rct::xmr_amount>(),
-        .enote_type = CarrotEnoteType::CHANGE
+        .enote_type = CarrotEnoteType::CHANGE,
+        .enote_ephemeral_privkey = mock::gen_secret_key()
     };
 
     RCTOutputEnoteProposal output_enote_proposal;
     get_output_proposal_special_v1(selfsend_payment_proposal,
         keys.k_view_incoming_dev,
         tx_first_key_image,
-        gen_x25519_pubkey(),
+        nullptr,
+        nullptr,
         output_enote_proposal);
 
     const CarrotEnoteV1 &enote = output_enote_proposal.enote;
@@ -515,14 +517,16 @@ TEST(carrot_tx_builder, make_sal_proof_carrot_to_legacy_v1_mainaddr_special)
     const CarrotPaymentProposalSelfSendV1 selfsend_payment_proposal{
         .destination_address_spend_pubkey = addr.address_spend_pubkey,
         .amount = crypto::rand<rct::xmr_amount>(),
-        .enote_type = CarrotEnoteType::CHANGE
+        .enote_type = CarrotEnoteType::CHANGE,
+        .enote_ephemeral_privkey = mock::gen_secret_key()
     };
 
     RCTOutputEnoteProposal output_enote_proposal;
     get_output_proposal_special_v1(selfsend_payment_proposal,
         keys.k_view_incoming_dev,
         tx_first_key_image,
-        gen_x25519_pubkey(),
+        nullptr,
+        nullptr,
         output_enote_proposal);
 
     const CarrotEnoteV1 &enote = output_enote_proposal.enote;
@@ -788,14 +792,16 @@ TEST(carrot_tx_builder, make_sal_proof_carrot_to_carrot_v1_mainaddr_special)
     const CarrotPaymentProposalSelfSendV1 selfsend_payment_proposal{
         .destination_address_spend_pubkey = addr.address_spend_pubkey,
         .amount = crypto::rand<rct::xmr_amount>(),
-        .enote_type = CarrotEnoteType::PAYMENT
+        .enote_type = CarrotEnoteType::PAYMENT,
+        .enote_ephemeral_privkey = mock::gen_secret_key()
     };
 
     RCTOutputEnoteProposal output_enote_proposal;
     get_output_proposal_special_v1(selfsend_payment_proposal,
         keys.k_view_incoming_dev,
         tx_first_key_image,
-        gen_x25519_pubkey(),
+        nullptr,
+        nullptr,
         output_enote_proposal);
 
     const CarrotEnoteV1 &enote = output_enote_proposal.enote;
@@ -882,14 +888,16 @@ TEST(carrot_tx_builder, make_sal_proof_carrot_to_carrot_v1_subaddr_special)
     const CarrotPaymentProposalSelfSendV1 selfsend_payment_proposal{
         .destination_address_spend_pubkey = addr.address_spend_pubkey,
         .amount = crypto::rand<rct::xmr_amount>(),
-        .enote_type = CarrotEnoteType::CHANGE
+        .enote_type = CarrotEnoteType::CHANGE,
+        .enote_ephemeral_privkey = mock::gen_secret_key()
     };
 
     RCTOutputEnoteProposal output_enote_proposal;
     get_output_proposal_special_v1(selfsend_payment_proposal,
         keys.k_view_incoming_dev,
         tx_first_key_image,
-        gen_x25519_pubkey(),
+        nullptr,
+        nullptr,
         output_enote_proposal);
 
     const CarrotEnoteV1 &enote = output_enote_proposal.enote;
@@ -973,14 +981,16 @@ TEST(carrot_tx_builder, make_sal_proof_carrot_to_carrot_v1_mainaddr_internal)
     const CarrotPaymentProposalSelfSendV1 selfsend_payment_proposal{
         .destination_address_spend_pubkey = addr.address_spend_pubkey,
         .amount = crypto::rand<rct::xmr_amount>(),
-        .enote_type = CarrotEnoteType::PAYMENT
+        .enote_type = CarrotEnoteType::PAYMENT,
+        .enote_ephemeral_privkey = mock::gen_secret_key()
     };
 
     RCTOutputEnoteProposal output_enote_proposal;
     get_output_proposal_internal_v1(selfsend_payment_proposal,
         keys.s_view_balance_dev,
         tx_first_key_image,
-        gen_x25519_pubkey(),
+        nullptr,
+        nullptr,
         output_enote_proposal);
 
     const CarrotEnoteV1 &enote = output_enote_proposal.enote;
@@ -1067,14 +1077,16 @@ TEST(carrot_tx_builder, make_sal_proof_carrot_to_carrot_v1_subaddr_internal)
     const CarrotPaymentProposalSelfSendV1 selfsend_payment_proposal{
         .destination_address_spend_pubkey = addr.address_spend_pubkey,
         .amount = crypto::rand<rct::xmr_amount>(),
-        .enote_type = CarrotEnoteType::CHANGE
+        .enote_type = CarrotEnoteType::CHANGE,
+        .enote_ephemeral_privkey = mock::gen_secret_key()
     };
 
     RCTOutputEnoteProposal output_enote_proposal;
     get_output_proposal_internal_v1(selfsend_payment_proposal,
         keys.s_view_balance_dev,
         tx_first_key_image,
-        gen_x25519_pubkey(),
+        nullptr,
+        nullptr,
         output_enote_proposal);
 
     const CarrotEnoteV1 &enote = output_enote_proposal.enote;
