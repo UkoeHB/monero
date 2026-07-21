@@ -253,7 +253,7 @@ static bool multisig_selfsends_are_owned(const carrot::CarrotTransactionProposal
         crypto::public_key nominal_address_spend_pubkey;
         addr_dev.get_address_spend_pubkey(selfsend.subaddr_index, nominal_address_spend_pubkey);
 
-        if (nominal_address_spend_pubkey != selfsend.proposal.destination_address_spend_pubkey)
+        if (nominal_address_spend_pubkey != selfsend.destination_address_spend_pubkey)
             return false;
     }
     return true;
@@ -349,7 +349,7 @@ static cryptonote::transaction finalize_multisig_tx(
         auto &rerandomized_output = rerandomized_outputs.emplace_back();
         rerandomized_output.input = fcmp_pp::calculate_fcmp_input_for_rerandomizations(
             onetime_address_ref(input_proposal),
-            rct::rct2pt(amount_commitment_ref(input_proposal)),
+            amount_commitment_ref(input_proposal),
             use_biased_hash_to_point(input_proposal),
             rr_vec[0],
             rr_vec[1],
@@ -738,7 +738,7 @@ void sign_multisig_partial_tx(
         auto &rerandomized_output = rerandomized_outputs.emplace_back();
         rerandomized_output.input = fcmp_pp::calculate_fcmp_input_for_rerandomizations(
             onetime_address_ref(input_proposal),
-            rct::rct2pt(amount_commitment_ref(input_proposal)),
+            amount_commitment_ref(input_proposal),
             use_biased_hash_to_point(input_proposal),
             rr_vec[0],
             rr_vec[1],
