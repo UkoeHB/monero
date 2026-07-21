@@ -8485,20 +8485,21 @@ bool wallet2::parse_multisig_tx_from_str(std::string multisig_tx_st, multisig_tx
   // sanity checks
   for (const auto &ptx: exported_txs.m_ptx)
   {
-    CHECK_AND_ASSERT_MES(!ptx.tx.vin.empty(), false, "Multisig tx has no inputs");
-
-    if (use_fork_rules_offline(HF_VERSION_CARROT))
+    if (std::holds_alternative<carrot::CarrotTransactionProposalV1>(ptx.construction_data))
     {
       const auto *tx_proposal = std::get_if<carrot::CarrotTransactionProposalV1>(&ptx.construction_data);
       if (nullptr == tx_proposal)
         continue;
-      CHECK_AND_ASSERT_MES(tx_proposal->input_proposals.size() == ptx.tx.vin.size(), false, "Mismatched input proposal/vin sizes");
+      CHECK_AND_ASSERT_MES(!tx_proposal->input_proposals.empty(), false, "Multisig tx has no inputs");
+      CHECK_AND_ASSERT_MES(ptx.tx.vin.empty(), false, "Multisig tx improperly includes non-null `ptx.tx`");
+      CHECK_AND_ASSERT_MES(tx_proposal->input_proposals.size() == ptx.multisig_enote_rr.size(), false, "Mismatched input proposal/enote_rr sizes");
     }
     else
     {
       const auto *pre_carrot_ctx_data = std::get_if<wallet::PreCarrotTransactionProposal>(&ptx.construction_data);
       if (nullptr == pre_carrot_ctx_data)
         continue;
+      CHECK_AND_ASSERT_MES(!ptx.tx.vin.empty(), false, "Multisig tx has no inputs");
       CHECK_AND_ASSERT_MES(pre_carrot_ctx_data->selected_transfers.size() == ptx.tx.vin.size(), false, "Mismatched cd selected_transfers/vin sizes");
       for (size_t idx: pre_carrot_ctx_data->selected_transfers)
         CHECK_AND_ASSERT_MES(idx < m_transfers.size(), false, "Transfer index out of range");
@@ -8571,6 +8572,11 @@ bool wallet2::load_multisig_tx_from_file(const std::string &filename, multisig_t
   return true;
 }
 //----------------------------------------------------------------------------------------------------
+// Note that `exported_txs` is expected to be passed in fully validated against the user's intentions.
+// Not all possible inconsistencies are checked here (e.g. the `ptx.construction_data` variant may
+// not match with this wallet's hf version, and `pending_tx` internals may be internally
+// inconsistent).
+//----------------------------------------------------------------------------------------------------
 bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto::hash> &txids)
 {
   THROW_WALLET_EXCEPTION_IF(exported_txs.m_ptx.empty(), error::wallet_internal_error, "No tx found");
@@ -8602,7 +8608,7 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
     multisig::signing::tx_builder_ringct_t multisig_tx_builder;
 
     // Add local partial signatures
-    if (use_fork_rules_offline(HF_VERSION_CARROT))
+    if (std::holds_alternative<carrot::CarrotTransactionProposalV1>(ptx.construction_data))
     {
       const carrot::CarrotTransactionProposalV1 *proposal = std::get_if<carrot::CarrotTransactionProposalV1>(
         &ptx.construction_data
@@ -8698,7 +8704,7 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
         {
           THROW_WALLET_EXCEPTION_IF(found, error::wallet_internal_error, "More than one transaction is final");
 
-          if (use_fork_rules_offline(HF_VERSION_CARROT))
+          if (std::holds_alternative<carrot::CarrotTransactionProposalV1>(ptx.construction_data))
           {
             THROW_WALLET_EXCEPTION_IF(!try_finalize_multisig_tx(
               this->get_tree_cache_ref(),

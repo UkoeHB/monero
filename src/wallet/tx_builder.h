@@ -146,8 +146,8 @@ const std::vector<std::uint8_t> &extra_ref(const tx_reconstruct_variant_t&);
 // splitted_dsts (in construction_data) does
 //
 // `pending_tx` that are potentially adversarial (e.g. sourced from a multisig tx proposal)
-// MAY be internally inconsistent. There is no in-library validation. Users MUST independently
-// parse and validate internal consistency.
+// MAY be internally inconsistent or invalid. There is little to no in-library validation. Users
+// MUST independently parse and validate internal consistency/validity.
 struct pending_tx
 {
     cryptonote::transaction tx;

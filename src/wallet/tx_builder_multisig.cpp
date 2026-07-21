@@ -885,7 +885,7 @@ bool try_finalize_multisig_tx(
     // Checks
     size_t num_attempts = ptx_inout.multisig_sigs.size();
     CHECK_AND_ASSERT_THROW_MES(num_attempts == saved_partial_sigs.size(),
-        "try vinalize multisig tx: num attempts != saved partial sigs size");
+        "try finalize multisig tx: num attempts != saved partial sigs size");
 
     CHECK_AND_ASSERT_THROW_MES(std::holds_alternative<carrot::CarrotTransactionProposalV1>(ptx_inout.construction_data),
         "sign multisig partial tx: pending_tx construction data is not CarrotTransactionProposalV1");
