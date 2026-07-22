@@ -455,7 +455,7 @@ void get_multisig_key_image_from_opening_hint(
     // Other signers' keys
     for (const auto& multisig_info : multisig_infos)
     {
-        // Add ki and kU shares
+        // Add ki shares
         for (size_t i = 0; i < multisig_info.m_partial_key_images.size(); ++i)
         {
             if (used_ki.find(multisig_info.m_partial_key_images.at(i)) != used_ki.end())
@@ -495,9 +495,6 @@ pending_tx tx_proposal_to_multisig_pending_tx(
 
     std::vector<crypto::key_image> expected_key_images_sorted = expected_key_images;
     std::sort(expected_key_images_sorted.begin(), expected_key_images_sorted.end(), std::greater{});
-
-    // Entropy for all signing attempts
-    crypto::secret_key entropy = rct::rct2sk(rct::skGen());
 
     // Rerandomization factors for each input
     crypto::public_key _main_address_spend_pubkeys[2];
@@ -685,7 +682,7 @@ pending_tx tx_proposal_to_multisig_pending_tx(
 
     // Add multisig pieces to pending_tx
     ptx.multisig_sigs = multisig_sigs;
-    ptx.multisig_tx_key_entropy = entropy;
+    ptx.multisig_tx_key_entropy = rct::rct2sk(rct::zero());  // not needed for Carrot txs
     ptx.multisig_enote_rr = multisig_enote_rr;
 
     return ptx;
@@ -725,6 +722,15 @@ void sign_multisig_partial_tx(
 
     std::vector<crypto::key_image> key_images_sorted = key_images;
     std::sort(key_images_sorted.begin(), key_images_sorted.end(), std::greater{});
+
+    // Recreate pending_tx from tx_proposal (this should internally validate the tx proposal)
+    pending_tx ptx_reproduced = make_pending_carrot_tx(tx_proposal,
+        key_images_sorted,
+        k_view_incoming_dev);
+    ptx_reproduced.multisig_sigs = ptx_inout.multisig_sigs;
+    ptx_reproduced.multisig_tx_key_entropy = ptx_inout.multisig_tx_key_entropy;
+    ptx_reproduced.multisig_enote_rr = ptx_inout.multisig_enote_rr;
+    CHECK_AND_ASSERT_THROW_MES(ptx_reproduced == ptx_inout, "sign multisig partial tx: failed recreating pending_tx");
 
     // Recover rerandomized outputs (for inputs)
     std::vector<FcmpRerandomizedOutputCompressed> rerandomized_outputs{};

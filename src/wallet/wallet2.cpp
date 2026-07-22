@@ -1079,17 +1079,18 @@ tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pending_t
 
     // Look up transfer details
     const auto best_it = best_transfer_by_ota.find(onetime_address_ref(input_proposal));
-    CHECK_AND_ASSERT_THROW_MES(best_it != best_transfer_by_ota.cend(), "failed collecting multisig details for pending tx");
+    CHECK_AND_ASSERT_THROW_MES(best_it != best_transfer_by_ota.cend(),
+      "failed collecting multisig details for pending tx: input proposal is missing from m_transfer_details");
     const wallet2_basic::transfer_details &td = w.get_transfer_details(best_it->second);
 
     // Save info ptr
     all_multisig_info[i] = &td.m_multisig_info;
 
     // Save precomputed key image
+    CHECK_AND_ASSERT_THROW_MES(!td.m_key_image_partial,
+      "failed collecting multisig details for pending tx: an input doesn't have completed key image");
     key_images.push_back(td.m_key_image);
   }
-
-  std::sort(key_images.begin(), key_images.end(), std::greater{});
 
   // Prep signers
   const std::vector<std::unordered_set<crypto::public_key>> ignore_sets = w.multisig_attempt_ignore_sets();

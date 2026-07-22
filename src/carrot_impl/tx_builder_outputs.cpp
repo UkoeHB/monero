@@ -33,6 +33,7 @@
 #include "carrot_core/enote_utils.h"
 #include "carrot_core/exceptions.h"
 #include "carrot_core/output_set_finalization.h"
+#include "common/container_helpers.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "format_utils.h"
 #include "tx_proposal_utils.h"
@@ -215,6 +216,14 @@ void get_enote_ephemeral_privkeys_from_proposal_v1(
                 make_carrot_input_context(tx_first_key_image));
         }
     }
+
+    // validate d_e uniqueness
+    std::unordered_set<crypto::secret_key> privkeys_set{};
+    for (const crypto::secret_key &pk : enote_ephemeral_privkeys_out)
+    {
+        privkeys_set.insert(pk);
+    }
+    assert(privkeys_set.size() == enote_ephemeral_privkeys_out.size() && "enote ephemeral privkeys are not unique");
 }
 //-------------------------------------------------------------------------------------------------------------------
 void make_signable_tx_hash_from_proposal_v1(const CarrotTransactionProposalV1 &tx_proposal,

@@ -219,7 +219,7 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
     // divide by 2 to make sure 2-of-3 has enough for the fee
     const rct::xmr_amount out_amount = rct::randXmrAmount(amount0 + amount1) / 2;
     const std::vector<carrot::CarrotTransactionProposalV1> tx_proposals = 
-        tools::wallet::make_carrot_transaction_proposals_wallet2_transfer( // stupidly long function name ;(
+        tools::wallet::make_carrot_transaction_proposals_wallet2_transfer(
             multisig_wallets[0].m_transfers,
             carrot::subaddress_map_legacy(multisig_wallets[0].m_subaddresses),
             {cryptonote::tx_destination_entry(out_amount, bob_main_addr, false)},
@@ -232,11 +232,11 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
             /*max_n_inputs=*/0,
             {},
             /*top_block_index=*/bc.height()-1);
-    
+
     ASSERT_EQ(1, tx_proposals.size());
 
     // 10.
-    LOG_PRINT_L2("The 2-of-3 participant initialize a partial tx");
+    LOG_PRINT_L2("The 2-of-3 participant initializes a partial tx");
     multisig_wallets[0].decrypt_keys("");
     tools::wallet::pending_tx pending_tx = tools::detail::transfer_details_and_tx_proposal_to_multisig_pending_tx(
       tx_proposals[0],
