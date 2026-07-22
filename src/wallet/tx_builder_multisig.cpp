@@ -446,11 +446,10 @@ void get_multisig_key_image_from_opening_hint(
     std::unordered_set<crypto::key_image> used_ki{};
     for (const crypto::secret_key &k : local_multisig_keys)
     {
-        crypto::key_image pki;
-        crypto::generate_key_image(onetime_address, k, pki);
+        rct::key pki = rct::scalarmultKey(ki_gen, rct::sk2rct(k));
 
-        rct::addKeys(ki, ki, rct::ki2rct(pki));
-        used_ki.insert(pki);
+        rct::addKeys(ki, ki, pki);
+        used_ki.insert(rct::rct2ki(pki));
     }
 
     // Other signers' keys
