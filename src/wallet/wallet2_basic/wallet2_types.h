@@ -29,6 +29,7 @@
 #pragma once
 
 //local headers
+#include "carrot_impl/format_utils.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/subaddress_index.h"
 #include "fcmp_pp/fcmp_pp_types.h"
@@ -171,6 +172,7 @@ struct transfer_details
     std::vector<std::pair<uint64_t, crypto::hash>> m_uses;
 
     bool is_rct() const { return m_rct; }
+    bool is_carrot() const { return carrot::is_carrot_transaction_v1(m_tx); }
     uint64_t amount() const { return m_amount; }
     const crypto::public_key get_public_key() const {
         crypto::public_key output_public_key;

@@ -14617,7 +14617,7 @@ wallet2::multisig_nonces wallet2::get_multisig_nonces(size_t n, const rct::key &
   CHECK_AND_ASSERT_THROW_MES(n < m_transfers.size(), "Bad m_transfers index");
   multisig_nonces nonces{};
   multisig::generate_multisig_nonces(
-    !carrot::is_carrot_transaction_v1(m_transfers[n].m_tx),
+    !m_transfers[n].is_carrot(),
     m_transfers[n].get_public_key(),
     rct::rct2sk(k),
     (crypto::public_key&)nonces.m_L,
@@ -14761,7 +14761,6 @@ cryptonote::blobdata wallet2::export_multisig()
   for (size_t n = 0; n < m_transfers.size(); ++n)
   {
     transfer_details &td = m_transfers[n];
-    crypto::key_image ki;
     if (td.m_multisig_k.size())
     {
       memwipe(td.m_multisig_k.data(), td.m_multisig_k.size() * sizeof(td.m_multisig_k[0]));
@@ -14772,12 +14771,17 @@ cryptonote::blobdata wallet2::export_multisig()
     info[n].m_partial_kU.clear();
 
     // record the partial key images and partial `k U` values
+    crypto::ec_point ki_base;
+    crypto::key_image ki_partial;
+    const bool biased_hash_to_point = !td.is_carrot();
+    crypto::derive_key_image_generator(td.get_public_key(), biased_hash_to_point, ki_base);
+
     const std::vector<crypto::secret_key> &multisig_keys = get_account().get_multisig_keys();
     for (size_t m = 0; m < multisig_keys.size(); ++m)
     {
       // we want to export the partial key image, not the full one, so we can't use td.m_key_image
-      crypto::generate_key_image(td.get_public_key(), multisig_keys[m], ki);
-      info[n].m_partial_key_images.push_back(ki);
+      ki_partial = rct::rct2ki(rct::scalarmultKey(rct::pt2rct(ki_base), rct::sk2rct(multisig_keys[m])));
+      info[n].m_partial_key_images.push_back(ki_partial);
 
       rct::key kU = rct::scalarmultKey(rct::pk2rct(crypto::get_U()), rct::sk2rct(multisig_keys[m]));
       info[n].m_partial_kU.push_back(rct::rct2pk(kU));

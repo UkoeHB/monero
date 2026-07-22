@@ -710,7 +710,8 @@ void sign_multisig_partial_tx(
     // Checks
     CHECK_AND_ASSERT_THROW_MES(std::holds_alternative<carrot::CarrotTransactionProposalV1>(ptx_inout.construction_data),
         "sign multisig partial tx: pending_tx construction data is not CarrotTransactionProposalV1");
-    const carrot::CarrotTransactionProposalV1& tx_proposal = std::get<carrot::CarrotTransactionProposalV1>(ptx_inout.construction_data);
+    const carrot::CarrotTransactionProposalV1& tx_proposal = std::get<carrot::CarrotTransactionProposalV1>(
+        ptx_inout.construction_data);
 
     const size_t num_inputs = tx_proposal.input_proposals.size();
     CHECK_AND_ASSERT_THROW_MES(num_inputs == ptx_inout.multisig_enote_rr.size(),
@@ -889,7 +890,8 @@ bool try_finalize_multisig_tx(
 
     CHECK_AND_ASSERT_THROW_MES(std::holds_alternative<carrot::CarrotTransactionProposalV1>(ptx_inout.construction_data),
         "sign multisig partial tx: pending_tx construction data is not CarrotTransactionProposalV1");
-    const carrot::CarrotTransactionProposalV1& tx_proposal = std::get<carrot::CarrotTransactionProposalV1>(ptx_inout.construction_data);
+    const carrot::CarrotTransactionProposalV1& tx_proposal = std::get<carrot::CarrotTransactionProposalV1>(
+        ptx_inout.construction_data);
 
     const size_t n_inputs = tx_proposal.input_proposals.size();
     const size_t n_outputs = tx_proposal.normal_payment_proposals.size()
@@ -985,8 +987,8 @@ multisig::signing::tx_builder_ringct_t sign_multisig_partial_tx_legacy(
 
             // get local signer's nonces for this transaction attempt's inputs
             // note: whoever created 'exported_txs' has full power to match proposed tx inputs (selected_transfers)
-            //       with the public nonces of the multisig signers who call this function (via 'used_L' as identifiers), however
-            //       the local signer will only use a given nonce exactly once (even if a used_L is repeated)
+            //       with the public nonces of the multisig signers who call this function (via 'used_L' as identifiers),
+            //       however the local signer will only use a given nonce exactly once (even if a used_L is repeated)
             for (std::size_t i = 0; i < local_nonces_k.size(); ++i) {
                 for (std::size_t j = 0; j < multisig::signing::kAlphaComponents; ++j) {
                     // Note: this clears alphas pulled from `multisig_nonces_inout`
