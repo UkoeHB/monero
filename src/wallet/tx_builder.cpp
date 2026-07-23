@@ -53,6 +53,7 @@
 #include "misc_log_ex.h"
 #include "ringct/bulletproofs_plus.h"
 #include "ringct/rctSigs.h"
+#include "serialization/stringify.h"
 #include "tx_builder_serialization.h"
 
 //third party headers
@@ -247,19 +248,10 @@ static carrot::InputCandidate make_input_candidate(const wallet2_basic::transfer
 //-------------------------------------------------------------------------------------------------------------------
 bool operator==(const pending_tx &a, const pending_tx &b)
 {
-    // TODO: fix compile errors
-    return true;
-
-    // // pending_tx is a legacy mess, so just serialize and compare instead of relying on operator== between members.
-    // std::ostringstream a_oss, b_oss;
-    // binary_archive<true> a_ar(a_oss), b_ar(b_oss);
-    // try
-    // {
-    //     if (::do_serialize(a_ar, a) && ::do_serialize(b_ar, b))
-    //         return a_ar.good() && b_ar.good() && a_oss.str() == b_oss.str();
-    // } catch (...) {}
-
-    // return false;
+    // pending_tx is a legacy mess, so just serialize and compare instead of relying on operator== between members.
+    std::string astr, bstr;
+    const bool r = ::stringify_with_do_serialize(a, astr) && ::stringify_with_do_serialize(b, bstr);
+    return r && astr == bstr;
 }
 //-------------------------------------------------------------------------------------------------------------------
 std::vector<cryptonote::tx_destination_entry> finalized_destinations(const tx_reconstruct_variant_t &v,

@@ -38,6 +38,7 @@
 #include "file_io_utils.h"
 #include "misc_log_ex.h"
 #include "ringct/rctSigs.h"
+#include "serialization/stringify.h"
 
 namespace cryptonote
 {
@@ -61,16 +62,6 @@ static rct::ctkey make_ctkey(const char* dest_hex, const char* mask_hex)
     CHECK_AND_ASSERT_THROW_MES(epee::from_hex::to_buffer(epee::as_mut_byte_span(dest), dest_hex), "dest bad hex: " << dest_hex);
     CHECK_AND_ASSERT_THROW_MES(epee::from_hex::to_buffer(epee::as_mut_byte_span(mask), mask_hex), "mask bad hex: " << mask_hex);
     return {dest, mask};
-}
-
-template <typename T>
-static std::string stringify_with_do_serialize(const T& t)
-{
-    std::stringstream ss;
-    binary_archive<true> ar(ss);
-    CHECK_AND_ASSERT_THROW_MES(ar.good(), "Archiver is not in a good state. This shouldn't happen!");
-    ::do_serialize(ar, const_cast<T&>(t));
-    return ss.str();
 }
 
 static bool check_tx_is_expanded(const cryptonote::transaction& tx, const rct::ctkeyM& pubkeys)
@@ -200,8 +191,9 @@ static bool modification_changes_do_serialize
 {
     T modded_obj = og_obj;
     obj_modifier_func(modded_obj);
-    const std::string og_blob = stringify_with_do_serialize(og_obj);
-    const std::string modded_blob = stringify_with_do_serialize(modded_obj);
+    std::string og_blob, modded_blob;
+    EXPECT_TRUE(::stringify_with_do_serialize(og_obj, og_blob));
+    EXPECT_TRUE(::stringify_with_do_serialize(modded_obj, modded_blob));
     const bool did_change = modded_blob != og_blob;
     if (did_change != expected_change)
     {

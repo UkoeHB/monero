@@ -191,13 +191,12 @@ static void prepare_legacy_multisig_input_signing_attempt(
         std::unordered_set<crypto::key_image> used_ki{};
         for (const crypto::secret_key &k : local_multisig_keys)
         {
-            crypto::key_image pki;
-            crypto::generate_key_image(onetime_address, k, pki);
+            rct::key pki = rct::scalarmultKey(rct::pt2rct(key_image_generator), rct::sk2rct(k));
             rct::key kU_temp = rct::scalarmultKey(U, rct::sk2rct(k));
 
-            rct::addKeys(ki, ki, rct::ki2rct(pki));
+            rct::addKeys(ki, ki, pki);
             rct::addKeys(kU, kU, kU_temp);
-            used_ki.insert(pki);
+            used_ki.insert(rct::rct2ki(pki));
         }
 
         // Other signers' keys

@@ -114,35 +114,38 @@ static void make_wallets(const unsigned int M, const unsigned int N, std::vector
 }
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
-TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan_1)
+static void run_test(const size_t M, const size_t N)
 {
+    ASSERT_TRUE(N > 1);
+    ASSERT_TRUE(M <= N);
+
     // 1. create fake blockchain
-    // 2. create 2-of-3 multisig wallet2 instances
+    // 2. create M-of-N multisig wallet2 instances
     // 3. create Bob wallet2 instance
-    // 4. send a mix of fake-input legacy and carrot txs to the 2-of-3
+    // 4. send a mix of fake-input legacy and carrot txs to the M-of-N
     // 5. step blockchain forward 10 blocks
-    // 6. scan blockchain with the 2-of-3 wallet
-    // 7. export info for the 2-of-3
-    // 8. import info for the 2-of-3
-    // 9. create carrot transaction proposal with one wallet in the 2-of-3
+    // 6. scan blockchain with the M-of-N wallet
+    // 7. export info for the M-of-N
+    // 8. import info for the M-of-N
+    // 9. create carrot transaction proposal with one wallet in the M-of-N
     // 10. initialize pending transaction
-    // 11. add signatures and finalize the tx with another 2-of-3 participant
+    // 11. add signatures and finalize the tx with another M-of-N participant
     // 12. serialize tx
     // 13. deserialize tx
     // 14. check ver_non_input_consensus()
     // 15. check verRctNonSemanticsSimple()
-    // 16. add the 2-of-3's transaction to blockchain
+    // 16. add the M-of-N's transaction to blockchain
     // 17. scan blockchain with Bob's wallet and assert money received
-    // 18. scan blockchain with the 2-of-3's wallets and assert money left
+    // 18. scan blockchain with the M-of-N's wallets and assert money left
 
     // 1.
     LOG_PRINT_L2("Initiating my imaginary, friendly chain of blocks");
     mock::fake_pruned_blockchain bc(0);
 
     // 2.
-    LOG_PRINT_L2("Generating wallets for a 2-of-3 multisig setup");
+    LOG_PRINT_L2("Generating wallets for a M-of-N multisig setup");
     std::vector<tools::wallet2> multisig_wallets;
-    make_wallets(2, 3, multisig_wallets);
+    make_wallets(M, N, multisig_wallets);
     for (auto &w : multisig_wallets)
         bc.init_wallet_for_starting_block(w);
     const cryptonote::account_public_address multisig_main_addr =
@@ -157,12 +160,12 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
     bc.init_wallet_for_starting_block(bob);
 
     // 4.
-    LOG_PRINT_L2("Sending transactions from the aether to the 2-of-3 (0)");
+    LOG_PRINT_L2("Sending transactions from the aether to the M-of-N (0)");
     const rct::xmr_amount amount0 = rct::randXmrAmount(COIN);
     std::vector<cryptonote::tx_destination_entry> dests0{cryptonote::tx_destination_entry(amount0, multisig_main_addr, false)};
     cryptonote::transaction tx = mock::construct_pre_carrot_tx_with_fake_inputs(dests0, /*fee=*/1234, /*hf_version=*/2);
     bc.add_block(2, {std::move(tx)}, mock::null_addr);
-    LOG_PRINT_L2("Sending transactions from the aether to the 2-of-3 (1)");
+    LOG_PRINT_L2("Sending transactions from the aether to the M-of-N (1)");
     const rct::xmr_amount amount1 = rct::randXmrAmount(COIN);
     std::vector<cryptonote::tx_destination_entry> dests1{
         cryptonote::tx_destination_entry(amount1, multisig_wallets[0].get_subaddress({0, 13}), true)
@@ -185,7 +188,7 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
         bc.add_block(HF_VERSION_CARROT, {}, mock::null_addr);
 
     // 6.
-    LOG_PRINT_L2("2-of-3 scanning the blockchain");
+    LOG_PRINT_L2("M-of-N scanning the blockchain");
     for (auto &w : multisig_wallets)
     {
         uint64_t blocks_added = bc.refresh_wallet(w);
@@ -196,7 +199,7 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
     }
 
     // 7.
-    LOG_PRINT_L2("2-of-3 exporting info");
+    LOG_PRINT_L2("M-of-N exporting info");
     std::vector<cryptonote::blobdata> multisig_exports;
     for (auto &w : multisig_wallets)
     {
@@ -206,7 +209,7 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
     }
 
     // 8.
-    LOG_PRINT_L2("2-of-3 importing info");
+    LOG_PRINT_L2("M-of-N importing info");
     for (auto &w : multisig_wallets)
     {
         w.decrypt_keys("");
@@ -215,8 +218,8 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
     }
 
     // 9.
-    LOG_PRINT_L2("A 2-of-3 participant proposes a tx to pay Bob");
-    // divide by 2 to make sure 2-of-3 has enough for the fee
+    LOG_PRINT_L2("A M-of-N participant proposes a tx to pay Bob");
+    // divide by 2 to make sure M-of-N has enough for the fee
     const rct::xmr_amount out_amount = rct::randXmrAmount(amount0 + amount1) / 2;
     const std::vector<carrot::CarrotTransactionProposalV1> tx_proposals = 
         tools::wallet::make_carrot_transaction_proposals_wallet2_transfer(
@@ -236,7 +239,7 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
     ASSERT_EQ(1, tx_proposals.size());
 
     // 10.
-    LOG_PRINT_L2("The 2-of-3 participant initializes a partial tx");
+    LOG_PRINT_L2("The M-of-N participant makes a tx");
     multisig_wallets[0].decrypt_keys("");
     tools::wallet::pending_tx pending_tx = tools::detail::transfer_details_and_tx_proposal_to_multisig_pending_tx(
       tx_proposals[0],
@@ -246,19 +249,24 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
     multisig_wallets[0].encrypt_keys("");
 
     // 11.
-    LOG_PRINT_L2("Another 2-of-3 participant signs and finalizes the partial tx");
-    multisig_wallets[1].decrypt_keys("");
-    tools::wallet2::multisig_tx_set tx_set_recovered;
-    multisig_wallets[1].parse_multisig_tx_from_str(tx_set_str, tx_set_recovered);
-    std::vector<crypto::hash> txids_computed;
-    multisig_wallets[1].sign_multisig_tx(tx_set_recovered, txids_computed);
-    multisig_wallets[1].encrypt_keys("");
-    ASSERT_EQ(txids_computed.size(), 1);
-    auto recovered_tx = tx_set_recovered.m_ptx[0].tx;
+    for (size_t i = 1; i < M; ++i)
+    {
+        LOG_PRINT_L2("Another M-of-N participant signs and finalizes the partial tx");
+        multisig_wallets[i].decrypt_keys("");
+        tools::wallet2::multisig_tx_set tx_set_recovered;
+        multisig_wallets[i].parse_multisig_tx_from_str(tx_set_str, tx_set_recovered);
+        std::vector<crypto::hash> txids_computed;
+        multisig_wallets[i].sign_multisig_tx(tx_set_recovered, txids_computed);
+        multisig_wallets[i].encrypt_keys("");
+        ASSERT_EQ(txids_computed.size(), 1);
+        // Save for next round
+        multisig_tx_set = std::move(tx_set_recovered);
+    }
 
     // 12.
     LOG_PRINT_L2("Serializing pending tx");
-    const cryptonote::blobdata to_bob_tx_blob = cryptonote::tx_to_blob(recovered_tx);
+    auto final_tx = multisig_tx_set.m_ptx[0].tx;
+    const cryptonote::blobdata to_bob_tx_blob = cryptonote::tx_to_blob(final_tx);
 
     // 13.
     LOG_PRINT_L2("Deserializing pending tx");
@@ -296,7 +304,7 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
 
     // 18.
     // note: don't need to export/import again since we already got key images for originally-owned enotes
-    LOG_PRINT_L2("2-of-3 scans sent money");
+    LOG_PRINT_L2("M-of-N scans sent money");
     for (auto &w : multisig_wallets)
     {
         const rct::xmr_amount old_balance = w.balance_all(true);
@@ -307,5 +315,26 @@ TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan
         ASSERT_LT(new_balance, old_balance);
         EXPECT_EQ(new_balance + out_amount + to_bob_tx_fee, old_balance);
     }
+}
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan_1_of_2)
+{
+    run_test(1, 2);
+}
+//----------------------------------------------------------------------------------------------------------------------
+TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan_2_of_2)
+{
+    run_test(2, 2);
+}
+//----------------------------------------------------------------------------------------------------------------------
+TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan_2_of_3)
+{
+    run_test(2, 3);
+}
+//----------------------------------------------------------------------------------------------------------------------
+TEST(wallet_tx_builder_multisig, wallet2_scan_propose_sign_prove_member_and_scan_3_of_3)
+{
+    run_test(3, 3);
 }
 //----------------------------------------------------------------------------------------------------------------------
