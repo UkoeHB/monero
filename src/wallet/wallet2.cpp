@@ -8426,13 +8426,6 @@ wallet2::multisig_tx_set wallet2::make_multisig_tx_set(const std::vector<pending
 {
   multisig_tx_set txs;
   txs.m_ptx = ptx_vector;
-
-  for (const auto &msk: get_account().get_multisig_keys())
-  {
-    crypto::public_key pkey = get_multisig_signing_public_key(msk);
-    for (auto &ptx: txs.m_ptx) for (auto &sig: ptx.multisig_sigs) sig.signing_keys.insert(pkey);
-  }
-
   txs.m_signers.insert(get_multisig_signer_public_key());
   return txs;
 }
@@ -8643,6 +8636,8 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
         multisig_nonces[i] = &td.m_multisig_k;
 
         // Save precomputed key image
+        CHECK_AND_ASSERT_THROW_MES(!td.m_key_image_partial,
+          "failed collecting multisig details for pending tx: an input doesn't have completed key image");
         key_images.push_back(td.m_key_image);
       }
 

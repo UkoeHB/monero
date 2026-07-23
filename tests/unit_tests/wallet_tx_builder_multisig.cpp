@@ -261,6 +261,7 @@ static void run_test(const size_t M, const size_t N)
         ASSERT_EQ(txids_computed.size(), 1);
         // Save for next round
         multisig_tx_set = std::move(tx_set_recovered);
+        tx_set_str = multisig_wallets[i].save_multisig_tx(multisig_tx_set);
     }
 
     // 12.
