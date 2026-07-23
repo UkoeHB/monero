@@ -110,6 +110,19 @@ static void make_wallets(const unsigned int M, const unsigned int N, std::vector
 
     EXPECT_EQ(total_rounds_required, rounds_complete);
 
+    // double check wallets
+    std::unordered_set<crypto::secret_key> view_privkeys{};
+    std::unordered_set<crypto::public_key> spend_keys{};
+    for (tools::wallet2 &w : wallets)
+    {
+        w.decrypt_keys("");
+        view_privkeys.insert(w.get_account().get_keys().m_view_secret_key);
+        spend_keys.insert(w.get_account().get_keys().m_account_address.m_spend_public_key);
+        w.encrypt_keys("");
+    }
+    EXPECT_EQ(view_privkeys.size(), 1);
+    EXPECT_EQ(spend_keys.size(), 1);
+
     wallets_out = std::move(wallets);
 }
 //----------------------------------------------------------------------------------------------------------------------
@@ -257,11 +270,13 @@ static void run_test(const size_t M, const size_t N)
         multisig_wallets[i].parse_multisig_tx_from_str(tx_set_str, tx_set_recovered);
         std::vector<crypto::hash> txids_computed;
         multisig_wallets[i].sign_multisig_tx(tx_set_recovered, txids_computed);
-        multisig_wallets[i].encrypt_keys("");
-        ASSERT_EQ(txids_computed.size(), 1);
         // Save for next round
         multisig_tx_set = std::move(tx_set_recovered);
         tx_set_str = multisig_wallets[i].save_multisig_tx(multisig_tx_set);
+        multisig_wallets[i].encrypt_keys("");
+        // End condition
+        if (i + 1 == M)
+            ASSERT_EQ(txids_computed.size(), 1);
     }
 
     // 12.

@@ -184,7 +184,7 @@ namespace
     return dir.string();
   }
 
-  bool keys_intersect(const std::unordered_set<crypto::public_key>& s1, const std::unordered_set<crypto::public_key>& s2)
+  bool keys_intersect(const std::set<crypto::public_key>& s1, const std::set<crypto::public_key>& s2)
   {
     if (s1.empty() || s2.empty())
       return false;
@@ -1093,7 +1093,7 @@ tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pending_t
   }
 
   // Prep signers
-  const std::vector<std::unordered_set<crypto::public_key>> ignore_sets = w.multisig_attempt_ignore_sets();
+  const std::vector<std::set<crypto::public_key>> ignore_sets = w.multisig_attempt_ignore_sets();
 
   // Construct `pending_tx`
   const size_t threshold = w.get_multisig_status().threshold;
@@ -10258,7 +10258,7 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
 
   // if this is a multisig wallet, get a list of signing attempts to make; each attempt contains a set of signers
   // to ignore for the attempt (all other signers may participate)
-  std::vector<std::unordered_set<crypto::public_key>> ignore_sets{this->multisig_attempt_ignore_sets()};
+  std::vector<std::set<crypto::public_key>> ignore_sets{this->multisig_attempt_ignore_sets()};
 
   bool all_rct = true;
   uint64_t found_money = 0;
@@ -10419,7 +10419,7 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
     const std::size_t num_multisig_attempts = ignore_sets.size();
     multisig_sigs.resize(num_multisig_attempts);
     std::unordered_set<rct::key> all_used_L;
-    std::unordered_set<crypto::public_key> signing_keys;
+    std::set<crypto::public_key> signing_keys;
     for (const crypto::secret_key &multisig_skey: get_account().get_multisig_keys())
       signing_keys.insert(get_multisig_signing_public_key(multisig_skey));
     const std::size_t num_sources = sources.size();
@@ -14625,7 +14625,7 @@ wallet2::multisig_nonces wallet2::get_multisig_nonces(size_t n, const rct::key &
 //----------------------------------------------------------------------------------------------------
 wallet2::multisig_nonces wallet2::get_multisig_composite_nonces(
   size_t n,
-  const std::unordered_set<crypto::public_key> &ignore_set,
+  const std::set<crypto::public_key> &ignore_set,
   std::unordered_set<rct::key> &used_L,
   std::vector<rct::key> &new_used_L,
   crypto::secret_key &k_out
@@ -14695,9 +14695,9 @@ std::deque<crypto::public_key> wallet2::multisig_available_signers() const
 // Sets of multisig signers who should be ignored from a multisig tx signing attempt.
 // One set exists for each combination of available signers equal to the multisig threshold.
 // An empty set is returned if there is only one combination available.
-std::vector<std::unordered_set<crypto::public_key>> wallet2::multisig_attempt_ignore_sets() const
+std::vector<std::set<crypto::public_key>> wallet2::multisig_attempt_ignore_sets() const
 {
-  std::vector<std::unordered_set<crypto::public_key>> ignore_sets{};
+  std::vector<std::set<crypto::public_key>> ignore_sets{};
 
   if (!m_multisig) { return {}; }
 
@@ -14725,7 +14725,7 @@ std::vector<std::unordered_set<crypto::public_key>> wallet2::multisig_attempt_ig
     auto ignore_combinations = c.combine(available_signers.size() + 1 - m_multisig_threshold);
     for (const auto& combination: ignore_combinations)
     {
-      ignore_sets.push_back(std::unordered_set<crypto::public_key>(combination.begin(), combination.end()));
+      ignore_sets.push_back(std::set<crypto::public_key>(combination.begin(), combination.end()));
     }
 
     n_multisig_txes = ignore_sets.size();

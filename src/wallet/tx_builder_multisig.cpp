@@ -44,13 +44,17 @@
 #include "multisig/multisig_sal.h"
 #include "multisig/multisig_tx_builder_ringct.h"
 #include "ringct/rctOps.h"
+#include "serialization/stringify.h"
 #include "tx_builder.h"
+#include "tx_builder_serialization.h"
 #include "wallet2_basic/wallet2_types.h"
 
 //third party headers
 
 //standard headers
 #include <algorithm>
+#include <set>
+#include <unordered_set>
 #include <variant>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -94,7 +98,7 @@ static void get_sorted_key_images(const std::vector<crypto::key_image> &key_imag
 // keys are shared on `G` while `T` is a placeholder.
 static void prepare_legacy_multisig_input_signing_attempt(
     const carrot::OutputOpeningHintVariant &opening_hint,
-    const std::unordered_set<crypto::public_key> &ignore_set,
+    const std::set<crypto::public_key> &ignore_set,
     // Should only include 'active' signers, and `ignore_set` excludes active signers referenced here.
     const std::vector<wallet2_basic::multisig_info> &multisig_infos,
     const std::vector<crypto::secret_key> &local_multisig_keys,
@@ -469,7 +473,7 @@ void get_multisig_key_image_from_opening_hint(
 //-------------------------------------------------------------------------------------------------------------------
 pending_tx tx_proposal_to_multisig_pending_tx(
     const carrot::CarrotTransactionProposalV1 &tx_proposal,
-    const std::vector<std::unordered_set<crypto::public_key>> &ignore_sets,
+    const std::vector<std::set<crypto::public_key>> &ignore_sets,
     const std::vector<const std::vector<wallet2_basic::multisig_info>*> &multisig_infos,
     const size_t threshold,
     const std::vector<crypto::secret_key> &local_multisig_keys,
@@ -528,8 +532,7 @@ pending_tx tx_proposal_to_multisig_pending_tx(
     }
 
     // Local signing keys used
-    std::unordered_set<crypto::public_key> signing_keys;
-    signing_keys.reserve(local_multisig_keys.size());
+    std::set<crypto::public_key> signing_keys;
     crypto::secret_key aggregate_local_k = crypto::null_skey;
 
     for (const crypto::secret_key &k : local_multisig_keys)
@@ -729,6 +732,12 @@ void sign_multisig_partial_tx(
     ptx_reproduced.multisig_sigs = ptx_inout.multisig_sigs;
     ptx_reproduced.multisig_tx_key_entropy = ptx_inout.multisig_tx_key_entropy;
     ptx_reproduced.multisig_enote_rr = ptx_inout.multisig_enote_rr;
+
+    // std::string orig, repro;
+    // ::stringify_with_do_serialize(ptx_inout, orig);
+    // ::stringify_with_do_serialize(ptx_reproduced, repro);
+    // std::cerr << orig << "\n\n" << repro << '\n';
+    // CHECK_AND_ASSERT_THROW_MES(ptx_reproduced.key_images == ptx_inout.key_images, "sign multisig partial tx: key image mismatch");
     CHECK_AND_ASSERT_THROW_MES(ptx_reproduced == ptx_inout, "sign multisig partial tx: failed recreating pending_tx");
 
     // Recover rerandomized outputs (for inputs)

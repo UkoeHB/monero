@@ -40,7 +40,7 @@
 //third party headers
 
 //standard headers
-#include <unordered_set>
+#include <set>
 #include <vector>
 
 //forward declarations
@@ -62,7 +62,7 @@ void get_multisig_key_image_from_opening_hint(
 
 pending_tx tx_proposal_to_multisig_pending_tx(
     const carrot::CarrotTransactionProposalV1 &tx_proposal,
-    const std::vector<std::unordered_set<crypto::public_key>> &ignore_sets,
+    const std::vector<std::set<crypto::public_key>> &ignore_sets,
     const std::vector<const std::vector<wallet2_basic::multisig_info>*> &multisig_infos,
     const size_t threshold,
     const std::vector<crypto::secret_key> &local_multisig_keys,

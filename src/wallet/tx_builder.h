@@ -51,13 +51,13 @@ namespace wallet
 struct multisig_sig
 {
     // Pubkeys of signers who should *not* participate in this signature.
-    std::unordered_set<crypto::public_key> ignore;
+    std::set<crypto::public_key> ignore;
     // The first nonce in each set of nonces that should be used by this signature.
     // Signers look up their previously-shared nonce sets here before signing.
     // - It's a flat data structure: [input [alpha# [signer nonce]]]
     std::vector<rct::key> used_L;
     // Signers that have already contributed partial signatures to this aggregate signature.
-    std::unordered_set<crypto::public_key> signing_keys;
+    std::set<crypto::public_key> signing_keys;
 
     // [alpha_1_i G, alpha_2_i G] for each input 'i' (aggregates partial nonces 'L' from all signers).
     // proofs: CLSAG, SAL
