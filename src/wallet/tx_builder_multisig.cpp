@@ -733,11 +733,6 @@ void sign_multisig_partial_tx(
     ptx_reproduced.multisig_tx_key_entropy = ptx_inout.multisig_tx_key_entropy;
     ptx_reproduced.multisig_enote_rr = ptx_inout.multisig_enote_rr;
 
-    // std::string orig, repro;
-    // ::stringify_with_do_serialize(ptx_inout, orig);
-    // ::stringify_with_do_serialize(ptx_reproduced, repro);
-    // std::cerr << orig << "\n\n" << repro << '\n';
-    // CHECK_AND_ASSERT_THROW_MES(ptx_reproduced.key_images == ptx_inout.key_images, "sign multisig partial tx: key image mismatch");
     CHECK_AND_ASSERT_THROW_MES(ptx_reproduced == ptx_inout, "sign multisig partial tx: failed recreating pending_tx");
 
     // Recover rerandomized outputs (for inputs)

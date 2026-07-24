@@ -620,6 +620,7 @@ TEST(multisig, sal_2_of_3)
   size_t num_signers = 2;
 
   rct::key k_agg = rct::Z;
+  rct::key t_ext = rct::skGen();
   std::unordered_set<rct::key> seen_keys{};
   std::vector<crypto::secret_key> keys_for_signing{};
   for (size_t i = 0; i < num_signers; ++i)
@@ -641,6 +642,7 @@ TEST(multisig, sal_2_of_3)
   rct::key message = rct::skGen();
   rct::key K = rct::pk2rct(keys[0]->m_account_address.m_spend_public_key);
   EXPECT_EQ(K, rct::scalarmultBase(k_agg));
+  K = rct::addKeys(K, rct::scalarmultKey(rct::pk2rct(crypto::get_T()), t_ext));  // simulate sender-receiver extension
   rct::key kU = rct::scalarmultKey(rct::pk2rct(crypto::get_U()), k_agg);
   crypto::key_image KI;
   crypto::generate_key_image(rct::rct2pk(K), rct::rct2sk(k_agg), KI);
@@ -695,7 +697,8 @@ TEST(multisig, sal_2_of_3)
       num_signers,
       proposal,
       keys_for_signing[i],
-      rct::rct2sk(rct::Z),
+      // i == 0 ? rct::rct2sk(t_ext) : rct::rct2sk(rct::Z),
+      rct::rct2sk(t_ext),
       total_alpha_G,
       total_alpha_H,
       total_alpha_U,

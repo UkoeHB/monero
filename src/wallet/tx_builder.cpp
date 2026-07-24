@@ -1226,7 +1226,6 @@ void prepare_for_fcmp_pp_proofs(
 
     // finalize enotes
     LOG_PRINT_L3("Getting output enote proposals");
-    std::vector<carrot::RCTOutputEnoteProposal> output_enote_proposals;
     carrot::get_output_enote_proposals_from_proposal_v1(tx_proposal,
         s_view_balance_dev,
         &k_view_incoming_dev,
@@ -1243,7 +1242,7 @@ void prepare_for_fcmp_pp_proofs(
 
     // make rerandomized outputs and collect by OTA
     rerandomized_outputs_out = carrot::generate_rerandomized_inputs_nonrefundable(
-        epee::to_span(output_enote_proposals),
+        epee::to_span(output_enote_proposals_out),
         epee::to_span(tx_proposal.input_proposals),
         main_address_spend_pubkeys,
         k_view_incoming_dev,
