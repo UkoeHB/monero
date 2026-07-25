@@ -30,7 +30,9 @@
 #include "tx_builder_multisig.h"
 
 //local headers
+#include "carrot_core/hash_functions.h"
 #include "carrot_core/output_set_finalization.h"
+#include "carrot_core/transcript_fixed.h"
 #include "carrot_impl/address_utils.h"
 #include "carrot_impl/tx_builder_outputs.h"
 #include "carrot_impl/tx_proposal.h"
@@ -64,6 +66,8 @@ namespace tools
 {
 namespace wallet
 {
+static constexpr const unsigned char SAL_MULTISIG_DOMAIN_SEP_SHARED_ENTROPY[] = "SAL multisig shared entropy";
+
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 static void get_sorted_key_images(const std::vector<crypto::key_image> &key_images,
@@ -94,6 +98,26 @@ static void get_sorted_key_images(const std::vector<crypto::key_image> &key_imag
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
+static crypto::secret_key get_sal_entropy(const crypto::secret_key &root_entropy,
+    const crypto::key_image &first_ki,
+    const crypto::public_key &K,
+    const std::uint32_t signing_attempt)
+{
+    const auto transcript = carrot::make_fixed_transcript<SAL_MULTISIG_DOMAIN_SEP_SHARED_ENTROPY>(
+        rct::sk2rct(root_entropy),
+        first_ki,
+        K,
+        signing_attempt
+    );
+    rct::key hash;
+    carrot::derive_scalar(transcript.data(), transcript.size(), nullptr, hash.bytes);
+    CHECK_AND_ASSERT_THROW_MES(sc_isnonzero(hash.bytes),
+        "multisig sal proof entropy: entropy must be nonzero!");
+
+    return rct::rct2sk(hash);
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 // NOTE: Only supports legacy multisig, where subaddress extensions are additive and
 // keys are shared on `G` while `T` is a placeholder.
 static void prepare_legacy_multisig_input_signing_attempt(
@@ -101,6 +125,7 @@ static void prepare_legacy_multisig_input_signing_attempt(
     const std::set<crypto::public_key> &ignore_set,
     // Should only include 'active' signers, and `ignore_set` excludes active signers referenced here.
     const std::vector<wallet2_basic::multisig_info> &multisig_infos,
+    const crypto::public_key &local_signer_pubkey,
     const std::vector<crypto::secret_key> &local_multisig_keys,
     const size_t threshold,
     const carrot::address_device &addr_dev,
@@ -207,6 +232,9 @@ static void prepare_legacy_multisig_input_signing_attempt(
         size_t n_signers_used = 1;
         for (const auto &multisig_info : multisig_infos)
         {
+            if (multisig_info.m_signer == local_signer_pubkey)
+                continue;
+
             // Ignored signers
             if (ignore_set.find(multisig_info.m_signer) != ignore_set.end())
                 continue;
@@ -476,6 +504,7 @@ pending_tx tx_proposal_to_multisig_pending_tx(
     const std::vector<std::set<crypto::public_key>> &ignore_sets,
     const std::vector<const std::vector<wallet2_basic::multisig_info>*> &multisig_infos,
     const size_t threshold,
+    const crypto::public_key &local_signer_pubkey,
     const std::vector<crypto::secret_key> &local_multisig_keys,
     const carrot::address_device &addr_dev,
     const carrot::view_incoming_key_device &k_view_incoming_dev,
@@ -556,8 +585,9 @@ pending_tx tx_proposal_to_multisig_pending_tx(
     std::vector<multisig_sig> multisig_sigs;
     std::unordered_set<rct::key> all_used_L{};
     multisig_sigs.reserve(num_signing_attempts);
+    const crypto::secret_key root_entropy = rct::rct2sk(rct::zero());
 
-    for (size_t s = 0; s < num_signing_attempts; ++s)
+    for (uint32_t s = 0; s < num_signing_attempts; ++s)
     {
         auto &partial_sigs = saved_partial_sigs_out.emplace_back();
 
@@ -596,6 +626,7 @@ pending_tx tx_proposal_to_multisig_pending_tx(
                 input_proposal,
                 ignore_sets.at(s),
                 *multisig_infos.at(i),
+                local_signer_pubkey,
                 local_multisig_keys,
                 threshold,
                 addr_dev,
@@ -626,6 +657,7 @@ pending_tx tx_proposal_to_multisig_pending_tx(
                 kU,
                 key_image,
                 fcmp_pp::rerandomized_enote_from_raw(rerandomized_outputs.at(i)),
+                get_sal_entropy(root_entropy, expected_key_images_sorted.at(0), onetime_address_ref(input_proposal), s),
                 proposal
             );
 
@@ -684,7 +716,7 @@ pending_tx tx_proposal_to_multisig_pending_tx(
 
     // Add multisig pieces to pending_tx
     ptx.multisig_sigs = multisig_sigs;
-    ptx.multisig_tx_key_entropy = rct::rct2sk(rct::zero());  // not needed for Carrot txs
+    ptx.multisig_tx_key_entropy = root_entropy;
     ptx.multisig_enote_rr = multisig_enote_rr;
 
     return ptx;
@@ -771,9 +803,12 @@ void sign_multisig_partial_tx(
 
     // Update each tx attempt
     saved_partial_sigs_out.reserve(ptx_inout.multisig_sigs.size());
+    const crypto::secret_key root_entropy = ptx_inout.multisig_tx_key_entropy;
 
-    for (multisig_sig &sig : ptx_inout.multisig_sigs)
+    for (uint32_t sig_idx = 0; sig_idx < ptx_inout.multisig_sigs.size(); ++sig_idx)
     {
+        multisig_sig &sig = ptx_inout.multisig_sigs[sig_idx];
+
         // Add an entry to the partial sigs
         // This can be empty if the local signer is ignored by this attempt. It just needs to align with
         // `ptx_inout.multisig_sigs`.
@@ -836,6 +871,7 @@ void sign_multisig_partial_tx(
                 sig.total_kU.at(i),
                 key_images.at(i),
                 fcmp_pp::rerandomized_enote_from_raw(rerandomized_outputs.at(i)),
+                get_sal_entropy(root_entropy, key_images_sorted.at(0), onetime_address_ref(input_proposal), sig_idx),
                 proposal
             );
 

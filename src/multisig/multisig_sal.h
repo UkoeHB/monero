@@ -90,6 +90,7 @@ struct SalProofMultisigPartial final
 * param: kU - proof key k U
 * param: KI - key image
 * param: rr_enote - enote with blinding factors
+* param: entropy - entropy used to generate shared nonces
 * outparam: proposal_out - proposal
 */
 void make_sal_multisig_proposal(
@@ -98,6 +99,7 @@ void make_sal_multisig_proposal(
     const rct::key &kU,
     const crypto::key_image &KI,
     const fcmp_pp::RerandomizedEnote &rr_enote,
+    const crypto::secret_key &entropy,
     SalProofMultisigProposal &proposal_out
 );
 /**

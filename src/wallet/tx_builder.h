@@ -162,7 +162,7 @@ struct pending_tx
     // TODO: move multisig pieces into separate struct?
     std::vector<multisig_sig> multisig_sigs;
     // ringct (clsag): used to generate enote privkeys
-    // fcmp (sal): unused since sender-receiver secrets are bound to input context, preventing enote burning
+    // fcmp (sal): used to generate shared SAL nonces
     crypto::secret_key multisig_tx_key_entropy;
     // fcmp_pp::FcmpRerandomizedOutputCompressed (just the r_* values) for each input 'i'.
     // Equivalent to [r_o | r_i | r_r_i | r_c]

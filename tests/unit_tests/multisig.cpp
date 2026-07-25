@@ -585,7 +585,7 @@ TEST(multisig, sal_1_of_1)
 
   // Second make a multisig proof with the C++ API.
   multisig::SalProofMultisigProposal proposal;
-  multisig::make_sal_multisig_proposal(message, K, kU, KI, rr_enote, proposal);
+  multisig::make_sal_multisig_proposal(message, K, kU, KI, rr_enote, rct::rct2sk(rct::skGen()), proposal);
 
   multisig::SalProofMultisigPartial partial_sig;
   multisig::make_sal_multisig_partial_sig(
@@ -687,7 +687,7 @@ TEST(multisig, sal_2_of_3)
 
   // Proposal
   multisig::SalProofMultisigProposal proposal;
-  multisig::make_sal_multisig_proposal(message, K, kU, KI, rr_enote, proposal);
+  multisig::make_sal_multisig_proposal(message, K, kU, KI, rr_enote, rct::rct2sk(rct::skGen()), proposal);
 
   // Partial sigs from signers
   std::vector<multisig::SalProofMultisigPartial> partial_sigs;
@@ -697,7 +697,6 @@ TEST(multisig, sal_2_of_3)
       num_signers,
       proposal,
       keys_for_signing[i],
-      // i == 0 ? rct::rct2sk(t_ext) : rct::rct2sk(rct::Z),
       rct::rct2sk(t_ext),
       total_alpha_G,
       total_alpha_H,

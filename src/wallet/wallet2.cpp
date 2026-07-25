@@ -1103,6 +1103,7 @@ tools::wallet::pending_tx transfer_details_and_tx_proposal_to_multisig_pending_t
     ignore_sets,
     all_multisig_info,
     threshold,
+    w.get_multisig_signer_public_key(),
     w.get_account().get_multisig_keys(),
     *w.get_address_device(),
     *w.get_view_incoming_key_device(),

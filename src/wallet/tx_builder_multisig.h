@@ -65,6 +65,7 @@ pending_tx tx_proposal_to_multisig_pending_tx(
     const std::vector<std::set<crypto::public_key>> &ignore_sets,
     const std::vector<const std::vector<wallet2_basic::multisig_info>*> &multisig_infos,
     const size_t threshold,
+    const crypto::public_key &local_signer_pubkey,
     const std::vector<crypto::secret_key> &local_multisig_keys,
     const carrot::address_device &addr_dev,
     const carrot::view_incoming_key_device &k_view_incoming_dev,

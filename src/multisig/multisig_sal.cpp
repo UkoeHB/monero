@@ -96,6 +96,7 @@ void make_sal_multisig_proposal(
     const rct::key &kU,
     const crypto::key_image &KI,
     const fcmp_pp::RerandomizedEnote &rr_enote,
+    const crypto::secret_key &entropy,
     SalProofMultisigProposal &proposal_out
 ){
     /// assemble proposal
@@ -104,7 +105,7 @@ void make_sal_multisig_proposal(
     proposal_out.kU = kU;
     proposal_out.KI = KI;
     proposal_out.rr_enote = rr_enote;
-    proposal_out.entropy = rct::rct2sk(rct::skGen());
+    proposal_out.entropy = entropy;
 }
 //-------------------------------------------------------------------------------------------------------------------
 // reference: https://github.com/monero-oxide/monero-oxide/blob/fcmp%2B%2B/monero-oxide/ringct/fcmp%2B%2B/src/sal/legacy_multisig.rs
