@@ -78,9 +78,15 @@ static void validate_tx_outs(
 {
     tx_pubkey_out = crypto::public_key{};
     tx_additional_pubkeys_out.clear();
+    CHECK_AND_ASSERT_THROW_MES(ext_outputs.size() == dests.size(),
+        "validate_tx_outs: ext_outputs size mismatch");
+CHECK_AND_ASSERT_THROW_MES(ptx.tx.version == 1 || ptx.tx.rct_signatures.ecdhInfo.size() == dests.size(),
+        "validate_tx_outs: ecdhInfo size mismatch");
+    CHECK_AND_ASSERT_THROW_MES(ptx.tx.version == 1 || ptx.tx.rct_signatures.outPk.size() == dests.size(),
+        "validate_tx_outs: outPk size mismatch");
 
-    // Check if multiple keys are expected
-    // Note: this is the same method used in `construct_tx_and_get_tx_key()`, so we should expect the same results.
+// Check if multiple keys are expected
+// Note: this is the same method used in `construct_tx_and_get_tx_key()`, so we should expect the same results.
     size_t num_stdaddresses = 0;
     size_t num_subaddresses = 0;
     cryptonote::account_public_address single_dest_subaddress;
@@ -361,13 +367,13 @@ void sanity_check_pending_tx(const wallet2::pending_tx &ptx,
         "sanity_check_pending_tx: global index mismatch between sources and tx");
     tools::apply_permutation(ins_order, sources_ordered);
 
-    // Similarly, tx vins are not in the same order as the selected transfers.
+    // Similarly, tx vins may not be in the same order as the selected transfers.
     // Check selected transfers key images and map to tx vins order.
     // Note: if the wallet hasn't imported key images, it won't be able to line up the order.
     std::vector<size_t> inp_order(ptx.selected_transfers.size());
     size_t found_kis_count = 0;
     CHECK_AND_ASSERT_THROW_MES(ext_key_images.size() == ptx.selected_transfers.size(),
-        "sanity_check_pending_tx: external key images size mismatch to selected transfers");
+        "sanity_check_pending_tx: extracted key images size mismatch to selected transfers");
     for (size_t i = 0; i < ext_key_images.size() && expect_imported_key_images; ++i)
     {
         const crypto::key_image &ki = ext_key_images[i];
@@ -379,7 +385,7 @@ void sanity_check_pending_tx(const wallet2::pending_tx &ptx,
             const auto &transfer = transfers.at(selected_transfer);
 
             CHECK_AND_ASSERT_THROW_MES(transfer.m_key_image_known,
-                "sanity_check_pending_tx: transfer - KI is unknown");
+                "sanity_check_pending_tx: transfer - KI is expected but unknown");
             if (transfer.m_key_image != ki)
                 continue;
             inp_order.at(j) = i;
@@ -443,7 +449,7 @@ void sanity_check_pending_tx(const wallet2::pending_tx &ptx,
         }
 
         input_amnt += src.amount;
-
+        // We need `inp_order` from here, which is only valid if key images are available.
         if (!expect_imported_key_images)
             continue;
 

@@ -8154,7 +8154,7 @@ bool wallet2::save_multisig_tx(const multisig_tx_set &txs, const std::string &fi
 wallet2::multisig_tx_set wallet2::make_multisig_tx_set(const std::vector<pending_tx>& ptx_vector) const
 {
   for (const auto &ptx : ptx_vector)
-    this->sanity_check_pending_tx(ptx, false, false);
+    this->sanity_check_pending_tx(ptx, false, true);
 
   multisig_tx_set txs;
   txs.m_ptx = ptx_vector;
