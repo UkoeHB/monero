@@ -82,7 +82,9 @@ static bool has_consistent_destination_types_impl(const std::vector<T> &txes)
     // Keep the address type consistent across transactions, including zero-amount
     // outputs and change, independently of how the summary subtracts change.
     // We only care about normal vs subaddress consistency, not integrated address consistency.
-    std::unordered_map<cryptonote::account_public_address, bool> destination_types;
+    // Keep the address type consistent across transactions, including zero-amount
+    // outputs and change.
+    // We only care about normal vs subaddress consistency, not integrated address consistency.
     for (const auto &tx: txes)
     {
         for (const auto &dest: get_tx_destinations(tx))
