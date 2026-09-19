@@ -86,13 +86,30 @@ static const std::vector<cryptonote::tx_source_entry>& get_tx_sources(const wall
     return tx.construction_data.sources;
 }
 //-------------------------------------------------------------------------------------------------------------------
+static const cryptonote::tx_destination_entry& get_tx_change(const wallet2::tx_construction_data &tx)
+{
+    return tx.change_dts;
+}
+//-------------------------------------------------------------------------------------------------------------------
+static const cryptonote::tx_destination_entry& get_tx_change(const wallet2::pending_tx &tx)
+{
+    return tx.construction_data.change_dts;
+}
+//-------------------------------------------------------------------------------------------------------------------
 template<typename T>
 static bool check_consistent_ins_outs_impl(const std::vector<T> &txes)
 {
     std::unordered_set<rct::key> seen_ins;
     std::unordered_map<cryptonote::account_public_address, bool> destination_types{};
+    boost::multiprecision::uint128_t total_input_amount = 0;
+    boost::multiprecision::uint128_t total_output_amount = 0;
     for (const auto &tx: txes)
     {
+        boost::multiprecision::uint128_t input_amount = 0;
+        boost::multiprecision::uint128_t output_amount = 0;
+        boost::multiprecision::uint128_t amount_to_change_address = 0;
+        const auto &change = get_tx_change(tx);
+
         // Inputs
         for (const auto &src: get_tx_sources(tx))
         {
@@ -103,6 +120,7 @@ static bool check_consistent_ins_outs_impl(const std::vector<T> &txes)
             const auto result = seen_ins.emplace(dest);
             CHECK_AND_ASSERT_THROW_MES(result.second,
                 "has_consistent_ins_outs: duplicate input pubkey");
+            input_amount += src.amount;
         }
 
         // Outputs
@@ -114,7 +132,24 @@ static bool check_consistent_ins_outs_impl(const std::vector<T> &txes)
             const auto result = destination_types.emplace(dest.addr, dest.is_subaddress);
             CHECK_AND_ASSERT_THROW_MES(result.second || result.first->second == dest.is_subaddress,
                 "has_consistent_ins_outs: duplicate output pubkey");
+            output_amount += dest.amount;
+            if (dest.addr == change.addr)
+                amount_to_change_address += dest.amount;
         }
+
+        CHECK_AND_ASSERT_THROW_MES(output_amount <= input_amount,
+            "has_consistent_ins_outs: output amount exceeds input amount");
+        CHECK_AND_ASSERT_THROW_MES(change.amount <= amount_to_change_address,
+            "has_consistent_ins_outs: change exceeds payment to change address");
+
+        // Review screens use uint64_t totals across the set. Bounding gross totals also
+        // bounds recipient subtotals, change, and fees.
+        total_input_amount += input_amount;
+        total_output_amount += output_amount;
+        CHECK_AND_ASSERT_THROW_MES(total_input_amount <= UINT64_MAX,
+            "has_consistent_ins_outs: tx set input amount > 2^64 - 1");
+        CHECK_AND_ASSERT_THROW_MES(total_output_amount <= UINT64_MAX,
+            "has_consistent_ins_outs: tx set output amount > 2^64 - 1");
     }
     return true;
 }
@@ -835,6 +870,34 @@ void check_consistent_ins_outs(const std::vector<wallet2::tx_construction_data> 
 void check_consistent_ins_outs(const std::vector<wallet2::pending_tx> &txes)
 {
     check_consistent_ins_outs_impl(txes);
+}
+//-------------------------------------------------------------------------------------------------------------------
+void sanity_check_unsigned_tx_set(const std::vector<wallet2::tx_construction_data> &txes,
+    const cryptonote::account_keys &account_keys,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddresses)
+{
+    check_consistent_ins_outs(txes);
+
+    for (const auto &tx: txes)
+    {
+        const auto &change = tx.change_dts;
+        const bool pays_change = std::any_of(tx.splitted_dsts.begin(), tx.splitted_dsts.end(),
+            [&change](const cryptonote::tx_destination_entry &dest) {
+                return dest.amount > 0 && dest.addr == change.addr;
+            });
+        // Zero-valued dummy change outputs deliberately use an unrelated address.
+        if (change.amount == 0 && !pays_change)
+            continue;
+
+        if (cryptonote::sanity_check_change_address(change.addr, subaddresses, account_keys))
+            continue;
+
+        // Review precedes importing the embedded outputs, which may expand the
+        // cold wallet's subaddress cache to include the sending account.
+        const auto expected_change = account_keys.get_device().get_subaddress(account_keys, {tx.subaddr_account, 0});
+        CHECK_AND_ASSERT_THROW_MES(change.addr == expected_change,
+            "sanity_check_unsigned_tx_set: change address does not belong to the sender account");
+    }
 }
 //-------------------------------------------------------------------------------------------------------------------
 void sanity_check_pending_tx_set(const std::vector<wallet2::pending_tx> &ptxs,
