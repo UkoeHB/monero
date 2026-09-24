@@ -91,6 +91,7 @@ static bool check_consistent_ins_outs_impl(const std::vector<T> &txes)
 {
     std::unordered_set<rct::key> seen_ins;
     std::unordered_map<cryptonote::account_public_address, bool> destination_types{};
+    boost::multiprecision::uint128_t total_input_amount = 0;
     for (const auto &tx: txes)
     {
         // Inputs
@@ -103,6 +104,7 @@ static bool check_consistent_ins_outs_impl(const std::vector<T> &txes)
             const auto result = seen_ins.emplace(dest);
             CHECK_AND_ASSERT_THROW_MES(result.second,
                 "check_consistent_ins_outs: duplicate input pubkey");
+            total_input_amount += src.amount;
         }
 
         // Outputs
@@ -116,6 +118,8 @@ static bool check_consistent_ins_outs_impl(const std::vector<T> &txes)
                 "check_consistent_ins_outs: duplicate destinations do not have matching subaddress designations");
         }
     }
+    CHECK_AND_ASSERT_THROW_MES(total_input_amount <= UINT64_MAX,
+        "check_consistent_ins_outs: tx set input amount > 2^64 - 1");
     return true;
 }
 //-------------------------------------------------------------------------------------------------------------------
@@ -835,6 +839,60 @@ void check_consistent_ins_outs(const std::vector<wallet2::tx_construction_data> 
 void check_consistent_ins_outs(const std::vector<wallet2::pending_tx> &txes)
 {
     check_consistent_ins_outs_impl(txes);
+}
+//-------------------------------------------------------------------------------------------------------------------
+void sanity_check_tx_construction_data(const wallet2::tx_construction_data &tx)
+{
+    boost::multiprecision::uint128_t input_amount = 0;
+    boost::multiprecision::uint128_t output_amount = 0;
+    boost::multiprecision::uint128_t amount_to_change_address = 0;
+    for (const auto &src: tx.sources)
+        input_amount += src.amount;
+    for (const auto &dest: tx.splitted_dsts)
+    {
+        output_amount += dest.amount;
+        if (dest.addr == tx.change_dts.addr)
+            amount_to_change_address += dest.amount;
+    }
+    CHECK_AND_ASSERT_THROW_MES(output_amount <= input_amount,
+        "sanity_check_tx_construction_data: output amount exceeds input amount");
+    CHECK_AND_ASSERT_THROW_MES(tx.change_dts.amount <= amount_to_change_address,
+        "sanity_check_tx_construction_data: change exceeds payment to change address");
+}
+//-------------------------------------------------------------------------------------------------------------------
+static void sanity_check_unsigned_tx(const wallet2::tx_construction_data &tx,
+    const cryptonote::account_keys &account_keys,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddresses)
+{
+    sanity_check_tx_construction_data(tx);
+
+    const auto &change = tx.change_dts;
+    const bool pays_change = std::any_of(tx.splitted_dsts.begin(), tx.splitted_dsts.end(),
+        [&change](const cryptonote::tx_destination_entry &dest) {
+            return dest.amount > 0 && dest.addr == change.addr;
+        });
+    // Zero-valued dummy change outputs deliberately use an unrelated address.
+    if (change.amount == 0 && !pays_change)
+        return;
+
+    if (cryptonote::sanity_check_change_address(change.addr, subaddresses, account_keys))
+        return;
+
+    // Review precedes importing the embedded outputs, which may expand the
+    // cold wallet's subaddress cache to include the sending account.
+    const auto expected_change = account_keys.get_device().get_subaddress(account_keys, {tx.subaddr_account, 0});
+    CHECK_AND_ASSERT_THROW_MES(change.addr == expected_change,
+        "sanity_check_unsigned_tx: change address does not belong to the sender account");
+}
+//-------------------------------------------------------------------------------------------------------------------
+void sanity_check_unsigned_tx_set(const std::vector<wallet2::tx_construction_data> &txes,
+    const cryptonote::account_keys &account_keys,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddresses)
+{
+    check_consistent_ins_outs(txes);
+
+    for (const auto &tx: txes)
+        sanity_check_unsigned_tx(tx, account_keys, subaddresses);
 }
 //-------------------------------------------------------------------------------------------------------------------
 void sanity_check_pending_tx_set(const std::vector<wallet2::pending_tx> &ptxs,

@@ -51,11 +51,17 @@ namespace wallet
 // Checks that inputs are not duplicated across transactions in the set.
 // Checks that duplicate destination addresses across the tx set have the same normal/subaddress
 // designations.
+// Checks that input amounts summed across the tx set fit in uint64_t.
 // *Only* for checking consistency between txs (which may be proposals, partially signed, or fully signed).
 // Use `sanity_check_pending_tx` to validate internal consistency for individual `pending_tx`, or
 // `sanity_check_pending_tx_set` to check consistent ins/outs + internals.
 void check_consistent_ins_outs(const std::vector<wallet2::tx_construction_data> &txes);
 void check_consistent_ins_outs(const std::vector<wallet2::pending_tx> &txes);
+void sanity_check_tx_construction_data(const wallet2::tx_construction_data &tx);
+// For unsigned transaction review before importing embedded outputs.
+void sanity_check_unsigned_tx_set(const std::vector<wallet2::tx_construction_data> &txes,
+    const cryptonote::account_keys &account_keys,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddresses);
 /**
  * brief: sanity_check_pending_tx - validate `pending_tx` consistency with itself and with with `transfer_details`
  *        Assumes `ptx` version is >= v16.
