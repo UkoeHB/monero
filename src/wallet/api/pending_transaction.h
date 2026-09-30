@@ -66,7 +66,7 @@ private:
     int  m_status;
     std::string m_errorString;
     std::vector<tools::wallet2::pending_tx> m_pending_tx;
-    std::unordered_set<crypto::public_key> m_signers;
+    std::set<crypto::public_key> m_signers;
     std::vector<std::string> m_tx_device_aux;
     std::vector<crypto::key_image> m_key_images;
 };

@@ -1506,6 +1506,7 @@ private:
     bool tx_add_fake_output(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, uint64_t global_index, const crypto::public_key& tx_public_key, const rct::key& mask, uint64_t real_index, bool unlocked, std::unordered_set<crypto::public_key> &valid_public_keys_cache) const;
     bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
     std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const;
+    void clear_multisig_k_and_store(const multisig_tx_set &txs);
     multisig_nonces get_multisig_composite_nonces(size_t n,  const std::set<crypto::public_key> &ignore_set, std::unordered_set<rct::key> &used_L, std::vector<rct::key> &new_used_L, crypto::secret_key &k_out) const;
     multisig_nonces get_multisig_nonces(size_t n, const rct::key &k) const;
     void update_multisig_rescan_info(const std::vector<std::vector<rct::key>> &multisig_k, const std::vector<std::vector<tools::wallet2::multisig_info>> &info, size_t n);
