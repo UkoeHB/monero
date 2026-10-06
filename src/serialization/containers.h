@@ -57,7 +57,14 @@ namespace serialization
 
 template <class Archive, class Container, class... Args>
 std::enable_if_t<::serialization::is_container<Container>::value, bool>
-do_serialize(Archive &ar, Container &c, size_t max_cnt = std::numeric_limits<size_t>::max(), Args&&... args)
+do_serialize(Archive &ar, Container &c, Args&&... args)
 {
-    return ::do_serialize_container(ar, c, max_cnt, std::forward<Args>(args)...);
+    return ::do_serialize_container(ar, c, std::forward<Args>(args)...);
+}
+
+template <class Archive, class Container, class... Args>
+std::enable_if_t<::serialization::is_container<Container>::value, bool>
+do_serialize_capped(Archive &ar, Container &c, size_t max_cnt, Args&&... args)
+{
+    return ::do_serialize_container_capped(ar, c, max_cnt, std::forward<Args>(args)...);
 }

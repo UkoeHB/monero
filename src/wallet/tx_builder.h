@@ -348,7 +348,6 @@ cryptonote::transaction finalize_fcmps_and_range_proofs(
 /**
  * @brief prepare_for_fcmp_pp_proofs - prepare inputs and outputs for finalizing a tx's proofs
  * @param tx_proposal -
- * @param main_address_spend_pubkeys - all K_s
  * @param k_view_incoming_dev -
  * @param s_view_balance_dev -
  * @param sorted_input_key_images -
@@ -374,7 +373,6 @@ void prepare_for_fcmp_pp_proofs(
  * @param tx_proposal -
  * @param tree_cache - FCMP tree cache to draw enote paths from
  * @param curve_trees -
- * @param main_address_spend_pubkeys - all K_s
  * @param addr_dev -
  * @param k_view_incoming_dev -
  * @param s_view_balance_dev - OPTIONAL

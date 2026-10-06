@@ -38,6 +38,7 @@
 #include "carrot_impl/tx_proposal.h"
 #include "common/apply_permutation.h"
 #include "crypto/generators.h"
+#include "scope_guard.h"
 #include "fcmp_pp/fcmp_pp_types_interop.h"
 #include "fcmp_pp/fcmp_pp_types.h"
 #include "fcmp_pp/prove.h"
@@ -166,8 +167,8 @@ static void prepare_legacy_multisig_input_signing_attempt(
     crypto::secret_key sender_extension_t;
     CHECK_AND_ASSERT_THROW_MES(carrot::try_scan_opening_hint_sender_extensions(opening_hint,
             addr_dev,
-            k_view_incoming_dev,
             s_view_balance_dev,
+            k_view_incoming_dev,
             sender_extension_g,
             sender_extension_t),
         "multisig composite keys for signing init: failed computing sender extensions");
@@ -448,8 +449,8 @@ void get_multisig_key_image_from_opening_hint(
     crypto::secret_key _sender_extension_t;
     CHECK_AND_ASSERT_THROW_MES(carrot::try_scan_opening_hint_sender_extensions(opening_hint,
             addr_dev,
-            k_view_incoming_dev,
             s_view_balance_dev,
+            k_view_incoming_dev,
             sender_extension_g,
             _sender_extension_t),
         "multisig composite keys for signing init: failed computing sender extensions");
@@ -876,8 +877,8 @@ void sign_multisig_partial_tx(
             crypto::secret_key sender_extension_t;
             CHECK_AND_ASSERT_THROW_MES(carrot::try_scan_opening_hint_sender_extensions(input_proposal,
                     addr_dev,
-                    &k_view_incoming_dev,
                     s_view_balance_dev,
+                    &k_view_incoming_dev,
                     _sender_extension_g,
                     sender_extension_t),
                 "sign multisig partial tx:: failed computing sender extensions");
@@ -1018,7 +1019,7 @@ multisig::signing::tx_builder_ringct_t sign_multisig_partial_tx_legacy(
         {
             rct::keyM local_nonces_k(proposal.selected_transfers.size(), rct::keyV(multisig::signing::kAlphaComponents));
             rct::key skey = rct::zero();
-            auto wiper = epee::misc_utils::create_scope_leave_handler([&]{
+            const epee::scope_guard scope_exit_handler([&]{
                 for (auto& e: local_nonces_k)
                     memwipe(e.data(), e.size() * sizeof(rct::key));
                 memwipe(&skey, sizeof(rct::key));

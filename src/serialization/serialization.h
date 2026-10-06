@@ -378,7 +378,7 @@ inline auto do_serialize(Archive &ar, T &v, Args&&... args)
 #define CONTAINER_FIELD_CAPPED(f, c)					\
   do {							\
     ar.tag(#f);						\
-    bool r = do_serialize(ar, f, c);			\
+    bool r = do_serialize_capped(ar, f, c);			\
     if (!r || !ar.good()) return false;			\
   } while(0);
 

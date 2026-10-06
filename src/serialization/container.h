@@ -113,7 +113,19 @@ namespace serialization
 }
 
 template <template <bool> class Archive, typename C, class... Args>
-bool do_serialize_container(Archive<false> &ar, C &v, size_t max_cnt, Args&&... args)
+bool do_serialize_container(Archive<false> &ar, C &v, Args&&... args)
+{
+  return do_serialize_container_capped(ar, v, std::numeric_limits<size_t>::max(), std::forward<Args>(args)...);
+}
+
+template <template <bool> class Archive, typename C, class... Args>
+bool do_serialize_container(Archive<true> &ar, C &v, Args&&... args)
+{
+  return do_serialize_container_capped(ar, v, std::numeric_limits<size_t>::max(), std::forward<Args>(args)...);
+}
+
+template <template <bool> class Archive, typename C, class... Args>
+bool do_serialize_container_capped(Archive<false> &ar, C &v, size_t max_cnt, Args&&... args)
 {
   size_t cnt;
   ar.begin_array(cnt);
@@ -144,7 +156,7 @@ bool do_serialize_container(Archive<false> &ar, C &v, size_t max_cnt, Args&&... 
 }
 
 template <template <bool> class Archive, typename C, class... Args>
-bool do_serialize_container(Archive<true> &ar, C &v, size_t max_cnt, Args&&... args)
+bool do_serialize_container_capped(Archive<true> &ar, C &v, size_t max_cnt, Args&&... args)
 {
   size_t cnt = v.size();
   if (cnt > max_cnt) {

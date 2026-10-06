@@ -1343,7 +1343,6 @@ cryptonote::transaction finalize_all_fcmp_pp_proofs(
     const carrot::CarrotTransactionProposalV1 &tx_proposal,
     const fcmp_pp::curve_trees::TreeCacheV1 &tree_cache,
     const fcmp_pp::curve_trees::CurveTreesV1 &curve_trees,
-    const epee::span<const crypto::public_key> main_address_spend_pubkeys,
     const carrot::address_device &addr_dev,
     const carrot::view_incoming_key_device &k_view_incoming_dev,
     const carrot::view_balance_secret_device *s_view_balance_dev,
@@ -1376,7 +1375,6 @@ cryptonote::transaction finalize_all_fcmp_pp_proofs(
     std::unordered_map<crypto::public_key, FcmpRerandomizedOutputCompressed> rerandomized_outputs_by_ota{};
     prepare_for_fcmp_pp_proofs(
         tx_proposal,
-        main_address_spend_pubkeys,
         addr_dev,
         k_view_incoming_dev,
         s_view_balance_dev,
