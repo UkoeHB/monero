@@ -114,7 +114,7 @@ TEST(tx_verification_utils, ver_input_proofs_rings)
     sources.reserve(N_INPUTS);
     for (size_t i = 0; i < N_INPUTS; ++i)
     {
-        const rct::xmr_amount in_amount = crypto::rand_range<rct::xmr_amount>(0, COIN) + COIN; // [1, 2] XMR
+        const rct::xmr_amount in_amount = crypto::rand_range(0, COIN) + COIN; // [1, 2] XMR
         const size_t real_in_ring_idx = crypto::rand_idx(N_RING_MEMBERS);
 
         // generate one-time address from derivation

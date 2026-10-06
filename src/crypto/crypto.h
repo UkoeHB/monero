@@ -180,14 +180,25 @@ namespace crypto {
 
   /* Generate a random value between range_min and range_max
    */
-  template<typename T>
-  typename std::enable_if<std::is_integral<T>::value, T>::type rand_range(T range_min, T range_max);
+  // TODO: template has linking error on clang
+  // template<typename T>
+  // typename std::enable_if<std::is_integral<T>::value, T>::type rand_range(T range_min, T range_max);
+  // extern template typename std::enable_if<std::is_integral<long>::value, long>::type rand_range<long>(long, long);
+  // extern template typename std::enable_if<std::is_integral<long long>::value, long long>::type rand_range<long long>(long long, long long);
+  // extern template typename std::enable_if<std::is_integral<unsigned>::value, unsigned>::type rand_range<unsigned>(unsigned, unsigned);
+  // extern template typename std::enable_if<std::is_integral<unsigned long>::value, unsigned long>::type rand_range<unsigned long>(unsigned long, unsigned long);
+  // extern template typename std::enable_if<std::is_integral<unsigned long long>::value, unsigned long long>::type rand_range<unsigned long long>(unsigned long long, unsigned long long);
+  long rand_range(const long range_min, const long range_max);
+  long long rand_range(const long long range_min, const long long range_max);
+  unsigned rand_range(unsigned range_min, const unsigned range_max);
+  unsigned long rand_range(const unsigned long range_min, const unsigned long range_max);
+  unsigned long long rand_range(const unsigned long long range_min, const unsigned long long range_max);
 
   /* Generate a random index between 0 and sz-1
    */
   template<typename T>
   typename std::enable_if<std::is_unsigned<T>::value, T>::type rand_idx(T sz) {
-    return crypto::rand_range<T>(0, sz-1);
+    return crypto::rand_range(0, sz-1);
   }
 
   /* Generate a new key pair

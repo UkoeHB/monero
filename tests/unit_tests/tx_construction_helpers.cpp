@@ -170,7 +170,7 @@ cryptonote::tx_source_entry gen_tx_source_entry_fake_members(
     used_indices.insert(in.global_output_index);
     while (res.outputs.size() < ring_size)
     {
-        const uint64_t global_output_index = crypto::rand_range<uint64_t>(0, max_global_output_index);
+        const uint64_t global_output_index = crypto::rand_range(0, max_global_output_index);
         if (used_indices.count(global_output_index))
             continue;
         used_indices.insert(global_output_index);
@@ -285,7 +285,7 @@ cryptonote::transaction construct_pre_carrot_tx_with_fake_inputs(
 
         const stripped_down_tx_source_entry_t balancing_in{
             .is_rct = rct,
-            .global_output_index = crypto::rand_range<uint64_t>(0, max_global_output_index),
+            .global_output_index = crypto::rand_range(0, max_global_output_index),
             .onetime_address = input_onetime_address,
             .real_out_tx_key = main_tx_keypair.pub,
             .real_out_additional_tx_keys = {},

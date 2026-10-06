@@ -660,8 +660,8 @@ crypto::secret_key gen_secret_key()
 subaddress_index gen_subaddress_index()
 {
     // guaranteed not to return the main address index
-    return {crypto::rand_range<uint32_t>(1, MAX_SUBADDRESS_MAJOR_INDEX),
-            crypto::rand_range<uint32_t>(1, MAX_SUBADDRESS_MINOR_INDEX)};
+    return {crypto::rand_range(1, MAX_SUBADDRESS_MAJOR_INDEX),
+            crypto::rand_range(1, MAX_SUBADDRESS_MINOR_INDEX)};
 }
 //----------------------------------------------------------------------------------------------------------------------
 subaddress_index_extended gen_subaddress_index_extended(const AddressDeriveType derive_type)

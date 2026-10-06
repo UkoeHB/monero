@@ -206,8 +206,8 @@ TEST(carrot_fcmp, receive_scan_spend_and_verify_serialized_carrot_tx)
     alice.generate();
     bob.generate();
 
-    const size_t n_inputs = crypto::rand_range<size_t>(CARROT_MIN_TX_INPUTS, FCMP_PLUS_PLUS_MAX_INPUTS);
-    const size_t n_outputs = crypto::rand_range<size_t>(CARROT_MIN_TX_OUTPUTS, FCMP_PLUS_PLUS_MAX_OUTPUTS);
+    const size_t n_inputs = crypto::rand_range(CARROT_MIN_TX_INPUTS, FCMP_PLUS_PLUS_MAX_INPUTS);
+    const size_t n_outputs = crypto::rand_range(CARROT_MIN_TX_OUTPUTS, FCMP_PLUS_PLUS_MAX_OUTPUTS);
 
     const std::size_t selene_chunk_width = fcmp_pp::curve_trees::SELENE_CHUNK_WIDTH;
     const std::size_t helios_chunk_width = fcmp_pp::curve_trees::HELIOS_CHUNK_WIDTH;

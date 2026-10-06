@@ -111,19 +111,50 @@ namespace crypto {
     add_extra_entropy_not_thread_safe(ptr, bytes);
   }
 
-  template<typename T>
-  typename std::enable_if<std::is_integral<T>::value, T>::type rand_range(T range_min, T range_max) {
+  // TODO: template has linking error on clang
+  // template<typename T>
+  // typename std::enable_if<std::is_integral<T>::value, T>::type rand_range(T range_min, T range_max) {
+  //   crypto::random_device rd;
+  //   std::uniform_int_distribution<T> dis(range_min, range_max);
+  //   return dis(rd);
+  // }
+  // #define INSTANTIATE_RAND_RANGE(t) template typename std::enable_if<std::is_integral<t>::value, t>::type rand_range<t>(t,t);
+  // INSTANTIATE_RAND_RANGE(long)
+  // INSTANTIATE_RAND_RANGE(long long)
+  // INSTANTIATE_RAND_RANGE(unsigned)
+  // INSTANTIATE_RAND_RANGE(unsigned long)
+  // INSTANTIATE_RAND_RANGE(unsigned long long)
+  // #undef INSTANTIATE_RAND_RANGE
+  long rand_range(const long range_min, const long range_max)
+  {
     crypto::random_device rd;
-    std::uniform_int_distribution<T> dis(range_min, range_max);
+    std::uniform_int_distribution<long> dis(range_min, range_max);
     return dis(rd);
   }
-  #define INSTANTIATE_RAND_RANGE(t) template t rand_range<t>(t,t);
-  INSTANTIATE_RAND_RANGE(long)
-  INSTANTIATE_RAND_RANGE(long long)
-  INSTANTIATE_RAND_RANGE(unsigned)
-  INSTANTIATE_RAND_RANGE(unsigned long)
-  INSTANTIATE_RAND_RANGE(unsigned long long)
-  #undef INSTANTIATE_RAND_RANGE
+  long long rand_range(const long long range_min, const long long range_max)
+  {
+    crypto::random_device rd;
+    std::uniform_int_distribution<long long> dis(range_min, range_max);
+    return dis(rd);
+  }
+  unsigned rand_range(unsigned range_min, const unsigned range_max)
+  {
+    crypto::random_device rd;
+    std::uniform_int_distribution<unsigned> dis(range_min, range_max);
+    return dis(rd);
+  }
+  unsigned long rand_range(const unsigned long range_min, const unsigned long range_max)
+  {
+    crypto::random_device rd;
+    std::uniform_int_distribution<unsigned long> dis(range_min, range_max);
+    return dis(rd);
+  }
+  unsigned long long rand_range(const unsigned long long range_min, const unsigned long long range_max)
+  {
+    crypto::random_device rd;
+    std::uniform_int_distribution<unsigned long long> dis(range_min, range_max);
+    return dis(rd);
+  }
 
   std::ostream &operator <<(std::ostream &o, const crypto::public_key &v) {
     epee::to_hex::formatted(o, epee::as_byte_span(v)); return o;
