@@ -238,7 +238,12 @@ void sanity_check_pending_tx(const wallet2::pending_tx &ptx,
     const std::optional<std::function<const crypto::key_image(const size_t)>> &transfer_ki_resolver,
     const bool allow_read_only)
 {
-    const auto &construct = std::get<PreCarrotTransactionProposal>(ptx.construction_data);
+    const auto *maybe_construct = std::get_if<PreCarrotTransactionProposal>(&ptx.construction_data);
+    if (maybe_construct == nullptr) {
+        // TODO: Carrot
+        return;
+    }
+    const auto &construct = *maybe_construct;
     const bool transfer_ki_accessible = transfer_ki_resolver.has_value();
 
     // Extract outputs

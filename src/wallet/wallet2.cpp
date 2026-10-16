@@ -8598,10 +8598,14 @@ std::string wallet2::save_multisig_tx(multisig_tx_set txs)
   try
   {
     if (!::serialization::serialize(ar, txs))
+    {
+      LOG_PRINT_L0("Failed to serialize multisig tx for saving: serialization error");
       return std::string();
+    }
   }
-  catch (...)
+  catch (const std::exception &e)
   {
+    LOG_PRINT_L0("Failed to serialize multisig tx for saving: " << e.what());
     return std::string();
   }
   LOG_PRINT_L2("Saving multisig unsigned tx data: " << oss.str());
@@ -8798,7 +8802,8 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs_inout, std::vector<
   for (size_t n = 0; n < exported_txs.m_ptx.size(); ++n)
   {
     const auto *pre_carrot_ctx_data = std::get_if<wallet::PreCarrotTransactionProposal>(&exported_txs.m_ptx[n].construction_data);
-    CHECK_AND_ASSERT_THROW_MES(pre_carrot_ctx_data != nullptr, "FCMP++/Carrot multisig unimplemented"); // TODO: Carrot
+    // CHECK_AND_ASSERT_THROW_MES(pre_carrot_ctx_data != nullptr, "FCMP++/Carrot multisig unimplemented"); // TODO: Carrot
+    if (pre_carrot_ctx_data == nullptr) { continue; }
 
     for (const size_t idx : pre_carrot_ctx_data->selected_transfers)
     {
@@ -14884,7 +14889,8 @@ void wallet2::clear_multisig_k_and_store(const multisig_tx_set &txs)
   for (const auto &ptx: txs.m_ptx)
   {
     const auto *pre_carrot_ctx_data = std::get_if<wallet::PreCarrotTransactionProposal>(&ptx.construction_data);
-    CHECK_AND_ASSERT_THROW_MES(pre_carrot_ctx_data != nullptr, "FCMP++/Carrot multisig unimplemented"); // TODO: Carrot
+    // CHECK_AND_ASSERT_THROW_MES(pre_carrot_ctx_data != nullptr, "FCMP++/Carrot multisig unimplemented"); // TODO: Carrot
+    if (pre_carrot_ctx_data == nullptr) { continue; }
 
     for (size_t idx: pre_carrot_ctx_data->selected_transfers)
     {

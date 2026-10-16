@@ -109,10 +109,12 @@ BEGIN_SERIALIZE_OBJECT_FN(pending_tx)
     FIELD_F(tx_key)
     FIELD_F(additional_tx_keys)
     FIELD_F(dests)
+    // TODO: this is jank
     const bool legacy_ctx_data = v.tx.version == 1
         || (v.tx.version == 2 && v.tx.rct_signatures.type < rct::RCTTypeFcmpPlusPlus);
-    if (legacy_ctx_data)
+    if (legacy_ctx_data && (v.tx.vin.size() > 0 || v.tx.vout.size() > 0))
     {
+        LOG_PRINT_L0("serializing pending_tx construction data as legacy");
         PreCarrotTransactionProposal *pconstruction_data = typename Archive<W>::is_saving()
             ? std::get_if<PreCarrotTransactionProposal>(&v.construction_data)
             : &v.construction_data.emplace<PreCarrotTransactionProposal>();

@@ -152,11 +152,11 @@ static void run_test(const size_t M, const size_t N)
     // 18. scan blockchain with the M-of-N's wallets and assert money left
 
     // 1.
-    LOG_PRINT_L2("Initiating my imaginary, friendly chain of blocks");
+    LOG_PRINT_L1("Initiating my imaginary, friendly chain of blocks");
     mock::fake_pruned_blockchain bc(0);
 
     // 2.
-    LOG_PRINT_L2("Generating wallets for a M-of-N multisig setup");
+    LOG_PRINT_L1("Generating wallets for a M-of-N multisig setup");
     std::vector<tools::wallet2> multisig_wallets;
     make_wallets(M, N, multisig_wallets);
     for (auto &w : multisig_wallets)
@@ -165,7 +165,7 @@ static void run_test(const size_t M, const size_t N)
         multisig_wallets[0].get_account().get_keys().m_account_address;
 
     // 3.
-    LOG_PRINT_L2("Generating wallet for Bob");
+    LOG_PRINT_L1("Generating wallet for Bob");
     tools::wallet2 bob(cryptonote::MAINNET, /*kdf_rounds=*/1, /*unattended=*/true);
     bob.set_offline(true);
     bob.generate("", "");
@@ -173,12 +173,12 @@ static void run_test(const size_t M, const size_t N)
     bc.init_wallet_for_starting_block(bob);
 
     // 4.
-    LOG_PRINT_L2("Sending transactions from the aether to the M-of-N (0)");
+    LOG_PRINT_L1("Sending transactions from the aether to the M-of-N (0)");
     const rct::xmr_amount amount0 = rct::randXmrAmount(COIN);
     std::vector<cryptonote::tx_destination_entry> dests0{cryptonote::tx_destination_entry(amount0, multisig_main_addr, false)};
     cryptonote::transaction tx = mock::construct_pre_carrot_tx_with_fake_inputs(dests0, /*fee=*/1234, /*hf_version=*/2);
     bc.add_block(2, {std::move(tx)}, mock::null_addr);
-    LOG_PRINT_L2("Sending transactions from the aether to the M-of-N (1)");
+    LOG_PRINT_L1("Sending transactions from the aether to the M-of-N (1)");
     const rct::xmr_amount amount1 = rct::randXmrAmount(COIN);
     std::vector<cryptonote::tx_destination_entry> dests1{
         cryptonote::tx_destination_entry(amount1, multisig_wallets[0].get_subaddress({0, 13}), true)
@@ -196,12 +196,12 @@ static void run_test(const size_t M, const size_t N)
     while (bc.num_outputs() < target_num_outputs)
         bc.add_block(HF_VERSION_CARROT, {}, mock::null_addr, target_num_outputs - bc.num_outputs());
 
-    LOG_PRINT_L2("Twiddling thumbs");
+    LOG_PRINT_L1("Twiddling thumbs");
     for (size_t i = 0; i < CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW; ++i)
         bc.add_block(HF_VERSION_CARROT, {}, mock::null_addr);
 
     // 6.
-    LOG_PRINT_L2("M-of-N scanning the blockchain");
+    LOG_PRINT_L1("M-of-N scanning the blockchain");
     for (auto &w : multisig_wallets)
     {
         uint64_t blocks_added = bc.refresh_wallet(w);
@@ -212,7 +212,7 @@ static void run_test(const size_t M, const size_t N)
     }
 
     // 7.
-    LOG_PRINT_L2("M-of-N exporting info");
+    LOG_PRINT_L1("M-of-N exporting info");
     std::vector<cryptonote::blobdata> multisig_exports;
     for (auto &w : multisig_wallets)
     {
@@ -222,7 +222,7 @@ static void run_test(const size_t M, const size_t N)
     }
 
     // 8.
-    LOG_PRINT_L2("M-of-N importing info");
+    LOG_PRINT_L1("M-of-N importing info");
     for (auto &w : multisig_wallets)
     {
         w.decrypt_keys("");
@@ -231,7 +231,7 @@ static void run_test(const size_t M, const size_t N)
     }
 
     // 9.
-    LOG_PRINT_L2("A M-of-N participant proposes a tx to pay Bob");
+    LOG_PRINT_L1("A M-of-N participant proposes a tx to pay Bob");
     // divide by 2 to make sure M-of-N has enough for the fee
     const rct::xmr_amount out_amount = rct::randXmrAmount(amount0 + amount1) / 2;
     const std::vector<carrot::CarrotTransactionProposalV1> tx_proposals = 
@@ -252,7 +252,7 @@ static void run_test(const size_t M, const size_t N)
     ASSERT_EQ(1, tx_proposals.size());
 
     // 10.
-    LOG_PRINT_L2("The M-of-N participant makes a tx");
+    LOG_PRINT_L1("The M-of-N participant makes a tx");
     multisig_wallets[0].decrypt_keys("");
     tools::wallet::pending_tx pending_tx = tools::detail::transfer_details_and_tx_proposal_to_multisig_pending_tx(
       tx_proposals[0],
@@ -264,7 +264,7 @@ static void run_test(const size_t M, const size_t N)
     // 11.
     for (size_t i = 1; i < M; ++i)
     {
-        LOG_PRINT_L2("Another M-of-N participant signs and finalizes the partial tx");
+        LOG_PRINT_L1("Another M-of-N participant signs and finalizes the partial tx");
         multisig_wallets[i].decrypt_keys("");
         tools::wallet2::multisig_tx_set tx_set_recovered;
         multisig_wallets[i].parse_multisig_tx_from_str(tx_set_str, tx_set_recovered);
@@ -280,24 +280,24 @@ static void run_test(const size_t M, const size_t N)
     }
 
     // 12.
-    LOG_PRINT_L2("Serializing pending tx");
+    LOG_PRINT_L1("Serializing pending tx");
     auto final_tx = multisig_tx_set.m_ptx[0].tx;
     const cryptonote::blobdata to_bob_tx_blob = cryptonote::tx_to_blob(final_tx);
 
     // 13.
-    LOG_PRINT_L2("Deserializing pending tx");
+    LOG_PRINT_L1("Deserializing pending tx");
     cryptonote::transaction to_bob_tx;
     ASSERT_TRUE(cryptonote::parse_and_validate_tx_from_blob(to_bob_tx_blob, to_bob_tx));
 
     // 14.
-    LOG_PRINT_L2("Checking ver_non_input_consensus");
+    LOG_PRINT_L1("Checking ver_non_input_consensus");
     ASSERT_GE(bc.hf_version(), HF_VERSION_FCMP_PLUS_PLUS);
     cryptonote::tx_verification_context tvc{};
     ASSERT_TRUE(cryptonote::ver_non_input_consensus(to_bob_tx, tvc, bc.hf_version()));
     EXPECT_FALSE(tvc.m_verifivation_failed);
 
     // 15.
-    LOG_PRINT_L2("Checking verRctNonSemanticsSimple");
+    LOG_PRINT_L1("Checking verRctNonSemanticsSimple");
     const auto tree_root = bc.get_fcmp_tree_root_at(bc.height() - 1);
     ASSERT_TRUE(cryptonote::Blockchain::expand_transaction_2(to_bob_tx,
         cryptonote::get_transaction_prefix_hash(to_bob_tx),
@@ -306,12 +306,12 @@ static void run_test(const size_t M, const size_t N)
     EXPECT_TRUE(rct::verRctNonSemanticsSimple(to_bob_tx.rct_signatures));
 
     // 16.
-    LOG_PRINT_L2("Adding to blockchain");
+    LOG_PRINT_L1("Adding to blockchain");
     const rct::xmr_amount to_bob_tx_fee = to_bob_tx.rct_signatures.txnFee;
     bc.add_block(HF_VERSION_CARROT, {std::move(to_bob_tx)}, mock::null_addr);
 
     // 17.
-    LOG_PRINT_L2("Bob scans received money");
+    LOG_PRINT_L1("Bob scans received money");
     ASSERT_EQ(0, bob.balance_all(true));
     auto blocks_added = bc.refresh_wallet(bob);
     ASSERT_EQ(bc.height()-1, blocks_added);
@@ -320,7 +320,7 @@ static void run_test(const size_t M, const size_t N)
 
     // 18.
     // note: don't need to export/import again since we already got key images for originally-owned enotes
-    LOG_PRINT_L2("M-of-N scans sent money");
+    LOG_PRINT_L1("M-of-N scans sent money");
     for (auto &w : multisig_wallets)
     {
         const rct::xmr_amount old_balance = w.balance_all(true);
