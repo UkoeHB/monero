@@ -186,8 +186,10 @@ static bool modification_changes_do_serialize
     T modded_obj = og_obj;
     obj_modifier_func(modded_obj);
     std::string og_blob, modded_blob;
-    EXPECT_TRUE(::stringify_with_do_serialize(og_obj, og_blob));
-    EXPECT_TRUE(::stringify_with_do_serialize(modded_obj, modded_blob));
+    // NOTE: These can fail if partial serialization occurs (e.g. RctSigPrunable serialization has internal consistency checks for bulleproofs
+    // length).
+    ::stringify_with_do_serialize(og_obj, og_blob);
+    ::stringify_with_do_serialize(modded_obj, modded_blob);
     const bool did_change = modded_blob != og_blob;
     if (did_change != expected_change)
     {
